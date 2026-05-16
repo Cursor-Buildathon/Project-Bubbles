@@ -100,24 +100,31 @@ describe('createFlowRouter', () => {
     expect(requestPrompt).toBe('calm beach image');
   });
 
-  it('routes music generation through the creative service and returns an audio artifact', async () => {
+  it('routes music generation through the creative service with image-style completion metadata', async () => {
+    let requestPrompt = '';
     const router = createFlowRouter({
       creative: {
-        run: async () => ({
-          ok: true,
-          text: 'The music is ready.',
-          artifact: { id: 'audio-1', kind: 'audio', path: '/tmp/music.mp3' }
-        })
+        run: async (request) => {
+          requestPrompt = request.prompt;
+          return {
+            ok: true,
+            text: 'The music is ready.',
+            artifact: { id: 'audio-1', kind: 'audio', path: '/tmp/music.mp3' }
+          };
+        }
       }
     });
 
-    await expect(router.route({ userText: 'Make a short song for launch', activeAgentId: 'general-assistant' })).resolves.toMatchObject({
+    await expect(router.route({ userText: 'create a guitar music', activeAgentId: 'general-assistant' })).resolves.toMatchObject({
       artifacts: [{ id: 'audio-1', kind: 'audio', path: '/tmp/music.mp3' }],
       avatarState: 'celebrating',
       handled: true,
-      message: 'The music is ready. You can listen in the chat window.',
-      taskType: 'creative.music'
+      message: 'The music is ready. You can listen or download it from the chat window.',
+      taskType: 'creative.music',
+      voiceText: 'The music is ready.',
+      speakOnArrival: true
     });
+    expect(requestPrompt).toBe('guitar music');
   });
 
   it('routes video generation through the creative service with one-shot speech metadata', async () => {

@@ -167,7 +167,10 @@ describe('useVoiceSession', () => {
     }
   });
 
-  it('speaks flagged image-generation messages once even when the request was typed', async () => {
+  it.each([
+    ['image-generation', 'The image is ready.'],
+    ['music-generation', 'The music is ready.']
+  ])('speaks flagged %s messages once even when the request was typed', async (_label, readyText) => {
     const previousBubbles = window.bubbles;
     const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
 
@@ -202,15 +205,15 @@ describe('useVoiceSession', () => {
       rerender({
         latestBubbleMessageId: 2,
         latestBubbleSpeakOnArrival: true,
-        latestBubbleText: 'The image is ready.'
+        latestBubbleText: readyText
       });
       rerender({
         latestBubbleMessageId: 2,
         latestBubbleSpeakOnArrival: true,
-        latestBubbleText: 'The image is ready.'
+        latestBubbleText: readyText
       });
 
-      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'The image is ready.', ttsId: 'tts-current' }));
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: readyText, ttsId: 'tts-current' }));
       expect(speak).toHaveBeenCalledTimes(1);
     } finally {
       window.bubbles = previousBubbles;

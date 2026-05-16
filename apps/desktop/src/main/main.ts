@@ -51,6 +51,7 @@ import {
   type TavilySetupService,
   type TavilySetupStatus,
   type TaskEvent,
+  type TaskType,
   type TimelineEvent,
   type TimelineStore,
   type TraceFieldValue,
@@ -1071,19 +1072,48 @@ async function routeCapabilityFlow(userText: string) {
     }
   });
   const routeIntent = classifyIntent(userText);
-  const workingMessageId = routeIntent.taskType === 'creative.video' ? Date.now() + 1 : undefined;
+  const mediaKind = mediaKindForTask(routeIntent.taskType);
+  const taskStartedAt = Date.now();
+  const workingMessageId = mediaKind ? taskStartedAt + 1 : undefined;
+  const mediaTaskId = mediaKind ? `task-${mediaKind}-${taskStartedAt}` : undefined;
 
-  if (workingMessageId) {
+  if (workingMessageId && mediaKind && mediaTaskId) {
     appState.messages = [
       ...appState.messages,
-      { id: workingMessageId - 1, author: 'user', text: userText },
+      { id: taskStartedAt, author: 'user', text: userText },
       {
         id: workingMessageId,
         author: 'bubbles',
-        text: "I'm generating your video. This can take a few minutes."
+        text: mediaWorkingMessage(mediaKind)
       }
     ];
+    appState.activeTaskId = mediaTaskId;
+    appendCapabilityTaskEvent(
+      {
+        taskId: mediaTaskId,
+        type: 'task.received',
+        payload: { activeAgentId: routeIntent.suggestedAgentId, taskType: routeIntent.taskType },
+        createdAt: new Date().toISOString()
+      },
+      'thinking'
+    );
+    appendCapabilityTaskEvent(
+      {
+        taskId: mediaTaskId,
+        type: 'task.status',
+        payload: { status: 'running', text: mediaRunningStatus(mediaKind) },
+        createdAt: new Date().toISOString()
+      },
+      'working'
+    );
     appState.avatarState = 'working';
+    void timelineStore?.append({
+      type: 'task_started',
+      title: 'Task started',
+      summary: userText,
+      taskId: mediaTaskId,
+      agentId: routeIntent.suggestedAgentId
+    }).then(() => hydrateMemoryState());
     broadcastAppState();
   }
 
@@ -1093,9 +1123,19 @@ async function routeCapabilityFlow(userText: string) {
   });
 
   if (!result.handled) {
-    if (workingMessageId) {
+    if (workingMessageId && mediaTaskId) {
       appState.messages = appState.messages.filter((message) => message.id !== workingMessageId && message.id !== workingMessageId - 1);
+      appState.activeTaskId = null;
       appState.avatarState = 'idle';
+      appendCapabilityTaskEvent(
+        {
+          taskId: mediaTaskId,
+          type: 'task.error',
+          payload: { errorMessage: 'Media task was not handled by the capability router.' },
+          createdAt: new Date().toISOString()
+        },
+        'concerned'
+      );
       broadcastAppState();
     }
     return false;
@@ -1113,6 +1153,33 @@ async function routeCapabilityFlow(userText: string) {
   appState.messages = workingMessageId
     ? appState.messages.map((message) => (message.id === workingMessageId ? bubbleMessage : message))
     : [...appState.messages, { id: Date.now(), author: 'user', text: userText }, bubbleMessage];
+  if (mediaTaskId) {
+    const eventType = result.avatarState === 'concerned' ? 'task.error' : 'task.result';
+    appendCapabilityTaskEvent(
+      {
+        taskId: mediaTaskId,
+        type: eventType,
+        payload:
+          eventType === 'task.error'
+            ? { errorMessage: result.message, taskType: result.taskType }
+            : {
+                text: result.message,
+                taskType: result.taskType,
+                artifactCount: result.artifacts?.length ?? 0
+              },
+        createdAt: new Date().toISOString()
+      },
+      result.avatarState
+    );
+    appState.activeTaskId = null;
+    void timelineStore?.append({
+      type: eventType === 'task.error' ? 'task_failed' : 'task_completed',
+      title: eventType === 'task.error' ? 'Task failed' : 'Task completed',
+      summary: result.message,
+      taskId: mediaTaskId,
+      agentId: result.suggestedAgentId
+    }).then(() => hydrateMemoryState());
+  }
   appState.avatarState = result.avatarState;
   appState.approvals = (await approvalService?.list()) ?? appState.approvals;
   if (result.avatarState === 'waiting_approval') {
@@ -1147,6 +1214,60 @@ async function runCreativeCapability(request: { kind: 'image' | 'music' | 'video
     kind: request.kind,
     prompt: request.prompt
   });
+}
+
+function mediaKindForTask(taskType: TaskType) {
+  if (taskType === 'creative.image') {
+    return 'image' as const;
+  }
+
+  if (taskType === 'creative.music') {
+    return 'music' as const;
+  }
+
+  if (taskType === 'creative.video') {
+    return 'video' as const;
+  }
+
+  return undefined;
+}
+
+function mediaWorkingMessage(kind: 'image' | 'music' | 'video') {
+  if (kind === 'image') {
+    return "I'm generating your image. This can take a moment.";
+  }
+
+  if (kind === 'video') {
+    return "I'm generating your video. This can take a few minutes.";
+  }
+
+  return "I'm generating your music. This can take a minute or two.";
+}
+
+function mediaRunningStatus(kind: 'image' | 'music' | 'video') {
+  if (kind === 'image') {
+    return 'Generating image';
+  }
+
+  if (kind === 'video') {
+    return 'Generating video';
+  }
+
+  return 'Generating music';
+}
+
+function appendCapabilityTaskEvent(event: TaskEvent, avatarState: AvatarState) {
+  appState.taskEvents = [...appState.taskEvents, event];
+  appState.avatarState = avatarState;
+  appendTraceEvent(event.type, {
+    taskId: event.taskId,
+    fields: {
+      avatarState,
+      payloadKeys: Object.keys(event.payload)
+    }
+  });
+  sendToWindow(avatarWindow, 'tasks:event', event);
+  sendToWindow(panelWindow, 'tasks:event', event);
 }
 
 async function runTavilyResearch(query: string) {

@@ -632,6 +632,17 @@ button {
   width: 100%;
 }
 
+.artifact-card__audio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.artifact-card--audio .artifact-card__status {
+  padding: 2px 0 0;
+}
+
 .artifact-card--site {
   background: #ffffff;
   display: grid;

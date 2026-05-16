@@ -172,7 +172,13 @@ async function generateMusic({
     body: JSON.stringify({
       model: 'music-2.6',
       prompt: request.prompt,
-      instrumental: true
+      output_format: 'hex',
+      audio_setting: {
+        sample_rate: 44100,
+        bitrate: 256000,
+        format: 'mp3'
+      },
+      is_instrumental: true
     })
   });
 
@@ -182,6 +188,7 @@ async function generateMusic({
   }
 
   const body = responseToRecord(await parseJson(response, 'MiniMax music generation returned no response body.'));
+  assertMiniMaxBaseRespOk(body, 'MiniMax music generation failed');
   const audioHex = findString(body, ['data.audio', 'audio', 'data.audio_hex', 'audio_hex']);
 
   if (!audioHex) {

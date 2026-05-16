@@ -192,4 +192,47 @@ describe('ChatSurface', () => {
       window.bubbles = previousBubbles;
     }
   });
+
+  it('downloads music artifacts from the chat card', async () => {
+    const previousBubbles = window.bubbles;
+    const downloadArtifact = vi.fn().mockResolvedValue({ ok: true, path: '/Users/dev/Downloads/Launch theme.mp3' });
+
+    try {
+      window.bubbles = {
+        capabilities: {
+          downloadArtifact,
+          openArtifact: vi.fn()
+        }
+      } as unknown as NonNullable<typeof window.bubbles>;
+
+      render(
+        <ChatSurface
+          chatEnabled
+          draft=""
+          messages={[
+            {
+              id: 1,
+              author: 'bubbles',
+              text: 'The music is ready.',
+              artifacts: [{ id: 'audio-1', kind: 'audio', path: '/tmp/music.mp3', title: 'Launch theme' }]
+            }
+          ]}
+          onDraftChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Download generated audio' }));
+
+      await waitFor(() =>
+        expect(downloadArtifact).toHaveBeenCalledWith({
+          path: '/tmp/music.mp3',
+          title: 'Launch theme'
+        })
+      );
+      expect(await screen.findByText('Saved to Downloads.')).toBeInTheDocument();
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
 });

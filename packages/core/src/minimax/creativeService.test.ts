@@ -137,10 +137,43 @@ describe('createMiniMaxCreativeService', () => {
         body: JSON.stringify({
           model: 'music-2.6',
           prompt: 'upbeat launch theme',
-          instrumental: true
+          output_format: 'hex',
+          audio_setting: {
+            sample_rate: 44100,
+            bitrate: 256000,
+            format: 'mp3'
+          },
+          is_instrumental: true
         })
       })
     );
+  });
+
+  it('returns the provider rejection reason when music generation is not accepted', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ base_resp: { status_code: 1008, status_msg: 'bad music request sk-cp-secret' } })
+    });
+    const service = createMiniMaxCreativeService({ apiKey: 'sk-cp-token', fetch: fetchMock });
+
+    const result = await service.run({
+      artifactDir,
+      fixture: false,
+      kind: 'music',
+      prompt: 'provider rejected music'
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('MiniMax music generation failed: bad music request')
+    });
+    expect(result.ok).toBe(false);
+
+    if (!result.ok) {
+      expect(result.error).not.toContain('sk-cp-secret');
+    }
   });
 
   it('generates video artifacts through the async MiniMax video API', async () => {

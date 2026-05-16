@@ -120,9 +120,10 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
               ? 'The image is ready. You can download it from the chat window.'
               : kind === 'video'
                 ? 'The video is ready. You can download it from the chat window.'
-              : 'The music is ready. You can listen in the chat window.',
-          speakOnArrival: kind === 'image' || kind === 'video',
-          voiceText: kind === 'image' ? 'The image is ready.' : kind === 'video' ? 'The video is ready.' : undefined
+              : 'The music is ready. You can listen or download it from the chat window.',
+          speakOnArrival: kind === 'image' || kind === 'video' || kind === 'music',
+          voiceText:
+            kind === 'image' ? 'The image is ready.' : kind === 'video' ? 'The video is ready.' : 'The music is ready.'
         };
       }
 
@@ -223,5 +224,6 @@ function extractCreativePrompt(userText: string, kind: 'image' | 'music' | 'vide
     return trailingVideoPrompt || userText;
   }
 
-  return directPrompt || userText;
+  const trailingMusicPrompt = userText.replace(/^(generate|make|create)\s+(me\s+)?((an?|the|short)\s+)?/i, '').trim();
+  return trailingMusicPrompt || directPrompt || userText;
 }

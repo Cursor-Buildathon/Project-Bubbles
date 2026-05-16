@@ -135,7 +135,11 @@ function ArtifactCard({ artifact }: { artifact: NonNullable<ChatMessage['artifac
     return (
       <div className="artifact-card artifact-card--audio">
         <audio aria-label="Generated music artifact" controls src={artifact.url ?? toArtifactUrl(artifact.path)} />
-        <span>{artifact.title ?? 'Generated music'}</span>
+        <div className="artifact-card__audio-footer">
+          <span>{artifact.title ?? 'Generated music'}</span>
+          {downloadButton}
+        </div>
+        {downloadStatusMessage}
       </div>
     );
   }
