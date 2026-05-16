@@ -1267,7 +1267,12 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest): Promise<
     const runner = createLandingPageRunner({
       sandboxRoot,
       generateCode: createMiniMaxLandingPageCodeGenerator({
-        generateJson: (prompt) => generateMiniMaxJson(apiKey, prompt, { maxCompletionTokens: 8000 })
+        generateJson: (prompt) =>
+          generateMiniMaxJson(apiKey, prompt, {
+            maxCompletionTokens: 8000,
+            timeoutMs: 45000,
+            useJsonResponseFormat: false
+          })
       })
     });
     const previousFiles =

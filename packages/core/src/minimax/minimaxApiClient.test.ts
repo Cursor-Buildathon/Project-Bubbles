@@ -108,6 +108,39 @@ describe('generateMiniMaxJson', () => {
     });
   });
 
+  it('can skip MiniMax response_format for landing-page code generation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: '{"files":[]}' } }]
+      })
+    });
+
+    await expect(
+      generateMiniMaxJson('sk-cp-valid', 'Create code JSON', {
+        fetch: fetchMock,
+        maxCompletionTokens: 8000,
+        useJsonResponseFormat: false
+      })
+    ).resolves.toEqual({ files: [] });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).not.toHaveProperty('response_format');
+  });
+
+  it('times out stalled MiniMax JSON requests', async () => {
+    const fetchMock = vi.fn((_input: string, init: RequestInit): Promise<never> =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })
+    );
+
+    await expect(generateMiniMaxJson('sk-cp-valid', 'Create JSON', { fetch: fetchMock, timeoutMs: 1 })).rejects.toMatchObject({
+      category: 'network',
+      message: 'MiniMax API request timed out. Please try again.'
+    });
+  });
+
   it('retries JSON generation without response_format when MiniMax returns empty content', async () => {
     const fetchMock = vi
       .fn()

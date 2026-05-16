@@ -30,6 +30,8 @@ export class MiniMaxApiError extends Error {
 interface MiniMaxApiOptions {
   fetch?: FetchLike;
   maxCompletionTokens?: number;
+  timeoutMs?: number;
+  useJsonResponseFormat?: boolean;
 }
 
 export async function verifyMiniMaxApiKey(
@@ -78,12 +80,18 @@ export async function verifyMiniMaxApiKey(
 export async function generateMiniMaxJson<T = unknown>(
   apiKey: string,
   prompt: string,
-  { fetch: fetchImpl = globalThis.fetch as FetchLike, maxCompletionTokens = 1200 }: MiniMaxApiOptions = {}
+  {
+    fetch: fetchImpl = globalThis.fetch as FetchLike,
+    maxCompletionTokens = 1200,
+    timeoutMs,
+    useJsonResponseFormat = true
+  }: MiniMaxApiOptions = {}
 ): Promise<T> {
   let lastError: unknown;
+  const responseFormatAttempts = useJsonResponseFormat ? [true, false] : [false];
 
-  for (const useResponseFormat of [true, false]) {
-    const response = await fetchImpl(minimaxChatEndpoint, {
+  for (const useResponseFormat of responseFormatAttempts) {
+    const response = await fetchWithTimeout(fetchImpl, minimaxChatEndpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -100,7 +108,7 @@ export async function generateMiniMaxJson<T = unknown>(
         ...(useResponseFormat ? { response_format: { type: 'json_object' } } : {}),
         max_completion_tokens: maxCompletionTokens
       })
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const body = response.text ? await response.text() : '';
@@ -128,9 +136,9 @@ export async function generateMiniMaxJson<T = unknown>(
 export async function generateMiniMaxText(
   apiKey: string,
   prompt: string,
-  { fetch: fetchImpl = globalThis.fetch as FetchLike, maxCompletionTokens = 1200 }: MiniMaxApiOptions = {}
+  { fetch: fetchImpl = globalThis.fetch as FetchLike, maxCompletionTokens = 1200, timeoutMs }: MiniMaxApiOptions = {}
 ): Promise<string> {
-  const response = await fetchImpl(minimaxChatEndpoint, {
+  const response = await fetchWithTimeout(fetchImpl, minimaxChatEndpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -146,7 +154,7 @@ export async function generateMiniMaxText(
       ],
       max_completion_tokens: maxCompletionTokens
     })
-  });
+  }, timeoutMs);
 
   if (!response.ok) {
     const body = response.text ? await response.text() : '';
@@ -161,6 +169,27 @@ export async function generateMiniMaxText(
   }
 
   return content;
+}
+
+async function fetchWithTimeout(fetchImpl: FetchLike, input: string, init: RequestInit, timeoutMs?: number) {
+  if (!timeoutMs) {
+    return fetchImpl(input, init);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetchImpl(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new MiniMaxApiError('MiniMax API request timed out. Please try again.', { category: 'network' });
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function createMiniMaxApiError(status: number | undefined, body: string, fallbackMessage: string) {

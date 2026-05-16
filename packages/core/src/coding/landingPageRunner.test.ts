@@ -7,6 +7,7 @@ import {
   assertWorkflowCommandsAllowed,
   type LandingPageCodeGenerator,
   createLandingPageRunner,
+  createMiniMaxLandingPageCodeGenerator,
   findAvailablePort
 } from './landingPageRunner.js';
 
@@ -85,6 +86,111 @@ describe('landingPageRunner', () => {
     );
   });
 
+  it('repairs common generated HTML omissions before sandbox checks', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bubbles-landing-'));
+    const runner = createLandingPageRunner({
+      sandboxRoot: root,
+      generateCode: vi.fn<LandingPageCodeGenerator>().mockResolvedValue({
+        files: [
+          {
+            path: 'index.html',
+            content: `<!doctype html>
+<html>
+  <head><title>Startup</title></head>
+  <body>
+    <main>
+      <h1>Launch faster</h1>
+      <img src="https://images.example/startup.jpg" />
+    </main>
+  </body>
+</html>`
+          },
+          { path: 'src.css', content: 'body { margin: 0; }' },
+          { path: 'package.json', content: '{}' }
+        ]
+      })
+    });
+
+    const result = await runner.generate({
+      request: 'Create me a techy startup webpage'
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    const html = await readFile(join(result.siteDir, 'index.html'), 'utf8');
+    const css = await readFile(join(result.siteDir, 'src.css'), 'utf8');
+    const packageJson = await readFile(join(result.siteDir, 'package.json'), 'utf8');
+
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('alt="techy startup visual"');
+    expect(html).toContain('<label for="bubbles-contact-email">Email</label>');
+    expect(css).toContain('.bubbles-contact-form');
+    expect(packageJson).toContain('"build": "vite build"');
+  });
+
+  it('adds a fallback visual when generated HTML omits images', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bubbles-landing-'));
+    const runner = createLandingPageRunner({
+      sandboxRoot: root,
+      generateCode: vi.fn<LandingPageCodeGenerator>().mockResolvedValue({
+        files: [
+          {
+            path: 'index.html',
+            content: '<section><p>Fast launch copy.</p></section>'
+          }
+        ]
+      })
+    });
+
+    const result = await runner.generate({
+      request: 'Create a landing page for Nova Cloud'
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    const html = await readFile(join(result.siteDir, 'index.html'), 'utf8');
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('<h1>Nova Cloud</h1>');
+    expect(html).toContain('src="data:image/svg+xml,');
+    expect(html).toContain('alt="Nova Cloud landing page visual"');
+  });
+
+  it('opens a safe fallback page when MiniMax code generation times out', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bubbles-landing-'));
+    const runner = createLandingPageRunner({
+      sandboxRoot: root,
+      generateCode: createMiniMaxLandingPageCodeGenerator({
+        generateJson: vi.fn().mockRejectedValue(new Error('MiniMax API request timed out. Please try again.'))
+      })
+    });
+
+    const result = await runner.generate({
+      request: 'Bubbles, create me a techy startup webpage.'
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    const html = await readFile(join(result.siteDir, 'index.html'), 'utf8');
+    const css = await readFile(join(result.siteDir, 'src.css'), 'utf8');
+
+    expect(html).toContain('<title>techy startup</title>');
+    expect(html).toContain('alt="techy startup product preview"');
+    expect(html).toContain('<label for="email">Email</label>');
+    expect(css).toContain('.hero');
+  });
+
   it('rejects generated files outside the landing-page allowlist', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bubbles-landing-'));
     const runner = createLandingPageRunner({
@@ -100,7 +206,7 @@ describe('landingPageRunner', () => {
     });
   });
 
-  it('rejects remote scripts and fonts while allowing remote images', async () => {
+  it('strips unsafe remote scripts and fonts while allowing remote images', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bubbles-landing-'));
     const runner = createLandingPageRunner({
       sandboxRoot: root,
@@ -119,10 +225,19 @@ describe('landingPageRunner', () => {
       })
     });
 
-    await expect(runner.generate({ request: 'Create a page with unsafe remote assets' })).resolves.toMatchObject({
-      ok: false,
-      error: expect.stringContaining('Remote scripts are not allowed')
-    });
+    const result = await runner.generate({ request: 'Create a page with unsafe remote assets' });
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    const html = await readFile(join(result.siteDir, 'index.html'), 'utf8');
+    const css = await readFile(join(result.siteDir, 'src.css'), 'utf8');
+
+    expect(html).not.toContain('https://cdn.example/app.js');
+    expect(css).not.toContain('https://fonts.example/font.css');
+    expect(html).toContain('https://images.example/photo.jpg');
   });
 
   it('passes previous files and change requests into revision generation', async () => {
