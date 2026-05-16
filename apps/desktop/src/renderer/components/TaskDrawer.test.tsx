@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskDrawer } from './TaskDrawer';
-import { type CliEvent } from '@bubbles/core';
+import { type TaskEvent } from '@bubbles/core';
 
 describe('TaskDrawer', () => {
   it('renders live task events and cancels the active task', () => {
@@ -50,7 +50,7 @@ describe('TaskDrawer', () => {
           createEvent('task.error', {
             category: 'network',
             errorMessage:
-              'MiniMax CLI cannot reach the network right now. Check your connection or proxy settings, then use Recheck CLI.',
+              'MiniMax API cannot reach the network right now. Check your connection or proxy settings, then recheck MiniMax.',
             hint: 'To use a proxy: set HTTPS_PROXY env var.'
           })
         ]}
@@ -58,12 +58,12 @@ describe('TaskDrawer', () => {
       />
     );
 
-    expect(screen.getByText(/MiniMax CLI cannot reach the network right now/)).toBeInTheDocument();
+    expect(screen.getByText(/MiniMax API cannot reach the network right now/)).toBeInTheDocument();
     expect(screen.getByText(/HTTPS_PROXY/)).toBeInTheDocument();
   });
 });
 
-function createEvent(type: CliEvent['type'], payload: Record<string, unknown>): CliEvent {
+function createEvent(type: TaskEvent['type'], payload: Record<string, unknown>): TaskEvent {
   return {
     taskId: 'task-1',
     type,

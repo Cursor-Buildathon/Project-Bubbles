@@ -56,27 +56,51 @@ contextBridge.exposeInMainWorld('bubbles', {
       ipcRenderer.on('voice:event', listener);
       return () => ipcRenderer.removeListener('voice:event', listener);
     },
+    openMicrophoneSettings: () => ipcRenderer.invoke('voice:open-microphone-settings'),
+    requestMicrophoneAccess: () => ipcRenderer.invoke('voice:request-microphone-access'),
     resolveApproval: (input: unknown) => ipcRenderer.invoke('voice:resolve-approval', input),
     speak: (input: unknown) => ipcRenderer.invoke('voice:speak', input),
     startSession: () => ipcRenderer.invoke('voice:start-session'),
     stopSession: () => ipcRenderer.invoke('voice:stop-session'),
     stopSpeaking: (input?: unknown) => ipcRenderer.invoke('voice:stop-speaking', input),
     submitPartialTranscript: (input: unknown) => ipcRenderer.invoke('voice:submit-partial-transcript', input),
-    submitTranscript: (input: unknown) => ipcRenderer.invoke('voice:submit-transcript', input)
+    submitTranscript: (input: unknown) => ipcRenderer.invoke('voice:submit-transcript', input),
+    transcribeAudio: (input: unknown) => ipcRenderer.invoke('voice:transcribe-audio', input)
+  },
+  voiceSetup: {
+    getStatus: () => ipcRenderer.invoke('voice-setup:get-status'),
+    onStatusChange: (callback: (status: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
+      ipcRenderer.on('voice-setup:status', listener);
+      return () => ipcRenderer.removeListener('voice-setup:status', listener);
+    },
+    resetAllVoiceKeys: () => ipcRenderer.invoke('voice-setup:reset-all-voice-keys'),
+    resetGeminiKey: () => ipcRenderer.invoke('voice-setup:reset-gemini-key'),
+    resetOpenAiKey: () => ipcRenderer.invoke('voice-setup:reset-openai-key'),
+    saveGeminiKey: (apiKey: string) => ipcRenderer.invoke('voice-setup:save-gemini-key', apiKey),
+    saveOpenAiKey: (apiKey: string) => ipcRenderer.invoke('voice-setup:save-openai-key', apiKey)
+  },
+  tavilySetup: {
+    getStatus: () => ipcRenderer.invoke('tavily:get-status'),
+    onStatusChange: (callback: (status: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
+      ipcRenderer.on('tavily:status', listener);
+      return () => ipcRenderer.removeListener('tavily:status', listener);
+    },
+    resetApiKey: () => ipcRenderer.invoke('tavily:reset-api-key'),
+    retry: () => ipcRenderer.invoke('tavily:retry'),
+    saveApiKey: (apiKey: string) => ipcRenderer.invoke('tavily:save-api-key', apiKey)
   },
   setup: {
     getStatus: () => ipcRenderer.invoke('setup:get-status'),
-    installCli: () => ipcRenderer.invoke('setup:install-cli'),
     onStatusChange: (callback: (status: unknown) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
       ipcRenderer.on('setup:status', listener);
       return () => ipcRenderer.removeListener('setup:status', listener);
     },
     resetAllMiniMax: () => ipcRenderer.invoke('setup:reset-all-minimax'),
-    resetGeneralApiKey: () => ipcRenderer.invoke('setup:reset-general-api-key'),
     resetTokenPlanKey: () => ipcRenderer.invoke('setup:reset-token-plan-key'),
     retry: () => ipcRenderer.invoke('setup:retry'),
-    saveGeneralApiKey: (apiKey: string) => ipcRenderer.invoke('setup:save-general-api-key', apiKey),
     saveTokenPlanKey: (apiKey: string) => ipcRenderer.invoke('setup:save-token-plan-key', apiKey)
   },
   tasks: {

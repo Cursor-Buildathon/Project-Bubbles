@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { generateMiniMaxJson, verifyMiniMaxApiKey } from './minimaxApiClient.js';
+import { generateMiniMaxJson, generateMiniMaxText, verifyMiniMaxApiKey } from './minimaxApiClient.js';
 
 describe('verifyMiniMaxApiKey', () => {
   it('verifies a key with the MiniMax OpenAI-compatible chat endpoint', async () => {
@@ -24,7 +24,7 @@ describe('verifyMiniMaxApiKey', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'MiniMax-M2.7-highspeed',
+        model: 'MiniMax-M2.7',
           messages: [
             {
               role: 'user',
@@ -46,7 +46,7 @@ describe('verifyMiniMaxApiKey', () => {
 
     await expect(verifyMiniMaxApiKey('sk-cp-invalid', { fetch: fetchMock })).resolves.toEqual({
       ok: false,
-      error: 'MiniMax API verification failed (401): invalid key [REDACTED]'
+      error: 'MiniMax API authentication failed. Recheck the Token Plan key in Settings.'
     });
   });
 
@@ -123,6 +123,55 @@ describe('generateMiniMaxJson', () => {
     await expect(generateMiniMaxJson('sk-cp-valid', 'Create JSON', { fetch: fetchMock })).resolves.toEqual({
       profile: { id: 'qa-agent' },
       skillsMarkdown: '# QA Agent'
+    });
+  });
+});
+
+describe('generateMiniMaxText', () => {
+  it('generates plain text with the Token Plan-supported MiniMax model and strips thinking blocks', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: '<think>private chain of thought</think>\nHello from Bubbles.'
+            }
+          }
+        ]
+      })
+    });
+
+    await expect(generateMiniMaxText('sk-cp-token', 'Say hello', { fetch: fetchMock })).resolves.toBe('Hello from Bubbles.');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.minimax.io/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-cp-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-M2.7',
+          messages: [{ role: 'user', content: 'Say hello' }],
+          max_completion_tokens: 1200
+        })
+      })
+    );
+  });
+
+  it('throws categorized redacted errors for direct MiniMax API failures', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => 'invalid key sk-cp-secret'
+    });
+
+    await expect(generateMiniMaxText('sk-cp-secret', 'Say hello', { fetch: fetchMock })).rejects.toMatchObject({
+      category: 'auth',
+      message: 'MiniMax API authentication failed. Recheck the Token Plan key in Settings.'
     });
   });
 });

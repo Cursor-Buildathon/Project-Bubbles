@@ -56,6 +56,8 @@ export async function createConnectorRegistry({
   await seedDefaults();
 
   async function seedDefaults() {
+    database.run(`DELETE FROM connectors WHERE id <> 'tavily-research'`);
+
     for (const connector of defaultConnectors(now())) {
       const existing = database.exec(`SELECT id FROM connectors WHERE id = '${connector.id}'`)[0]?.values[0];
 
@@ -172,12 +174,7 @@ export async function createConnectorRegistry({
 }
 
 function defaultConnectors(updatedAt: string): ConnectorConfig[] {
-  return [
-    createDefault('web-search', 'Web Search', 'web_search', updatedAt),
-    createDefault('local-files', 'Local Files', 'local_files', updatedAt),
-    createDefault('email', 'Email', 'email', updatedAt),
-    createDefault('calendar', 'Calendar', 'calendar', updatedAt)
-  ];
+  return [createDefault('tavily-research', 'Tavily Research', 'tavily_research', updatedAt)];
 }
 
 function createDefault(id: string, name: string, type: ConnectorType, updatedAt: string): ConnectorConfig {
@@ -189,9 +186,13 @@ function createDefault(id: string, name: string, type: ConnectorType, updatedAt:
     mode: 'real',
     authStatus: 'not_configured',
     healthStatus: 'unknown',
-    allowedAgents: [],
-    requiredApproval: type === 'local_files' ? 'preview_sensitive_actions' : 'preview_sensitive_actions',
-    launchConfig: {},
+    allowedAgents: ['research-agent'],
+    requiredApproval: 'none',
+    launchConfig: {
+      maxResults: 8,
+      remoteUrl: 'https://mcp.tavily.com/mcp/',
+      searchDepth: 'advanced'
+    },
     updatedAt
   };
 }
@@ -215,13 +216,9 @@ function rowsToConnectors(rows: unknown[][]): ConnectorConfig[] {
 }
 
 function redactLaunchConfig(config: ConnectorLaunchConfig): ConnectorLaunchConfig {
-  return {
-    ...config,
-    args: config.args?.map((arg) => redactSecrets(arg)),
-    env: config.env ? Object.fromEntries(Object.entries(config.env).map(([key, value]) => [key, redactSecrets(value)])) : undefined
-  };
+  return JSON.parse(redactSecrets(JSON.stringify(config))) as ConnectorLaunchConfig;
 }
 
 function orderFor(type: ConnectorType) {
-  return ['web_search', 'local_files', 'email', 'calendar'].indexOf(type);
+  return ['tavily_research'].indexOf(type);
 }

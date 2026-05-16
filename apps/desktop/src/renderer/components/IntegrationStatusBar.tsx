@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, CircleDashed, PlugZap } from 'lucide-react';
+import { CheckCircle2, CircleAlert, PlugZap } from 'lucide-react';
 import { type ConnectorConfig, type MemoryItem, type SetupStatus, type VoiceSessionState } from '@bubbles/core';
 
 interface IntegrationStatusBarProps {
@@ -11,7 +11,6 @@ interface IntegrationStatusBarProps {
 export function IntegrationStatusBar({ connectors, memories, setupStatus, voiceState }: IntegrationStatusBarProps) {
   const setupReady = setupStatus?.state === 'ready';
   const healthyConnectors = connectors.filter((connector) => connector.enabled && connector.healthStatus === 'healthy').length;
-  const fixtureConnectors = connectors.filter((connector) => connector.mode === 'fixture').length;
 
   return (
     <section className="integration-status-bar" data-testid="integration-status-bar" aria-label="Integration status">
@@ -21,7 +20,7 @@ export function IntegrationStatusBar({ connectors, memories, setupStatus, voiceS
         tone={setupReady ? 'ready' : 'warning'}
       />
       <StatusBadge icon="connector" label={`${healthyConnectors}/${connectors.length} connectors healthy`} tone="neutral" />
-      <StatusBadge icon="fixture" label={`${fixtureConnectors} fixture`} tone={fixtureConnectors ? 'fixture' : 'neutral'} />
+      <StatusBadge icon="connector" label="Tavily MCP" tone="neutral" />
       <StatusBadge icon="ready" label={`${memories.length} memories`} tone="neutral" />
       <StatusBadge icon={voiceState.enabled ? 'ready' : 'warning'} label={voiceStatusText(voiceState)} tone={voiceState.enabled ? 'ready' : 'neutral'} />
     </section>
@@ -29,9 +28,9 @@ export function IntegrationStatusBar({ connectors, memories, setupStatus, voiceS
 }
 
 interface StatusBadgeProps {
-  icon: 'connector' | 'fixture' | 'ready' | 'warning';
+  icon: 'connector' | 'ready' | 'warning';
   label: string;
-  tone: 'fixture' | 'neutral' | 'ready' | 'warning';
+  tone: 'neutral' | 'ready' | 'warning';
 }
 
 function voiceStatusText(voiceState: VoiceSessionState) {
@@ -59,7 +58,7 @@ function voiceStatusText(voiceState: VoiceSessionState) {
 }
 
 function StatusBadge({ icon, label, tone }: StatusBadgeProps) {
-  const Icon = icon === 'ready' ? CheckCircle2 : icon === 'connector' ? PlugZap : icon === 'fixture' ? CircleDashed : CircleAlert;
+  const Icon = icon === 'ready' ? CheckCircle2 : icon === 'connector' ? PlugZap : CircleAlert;
 
   return (
     <span className={`status-pill status-pill--${tone}`}>

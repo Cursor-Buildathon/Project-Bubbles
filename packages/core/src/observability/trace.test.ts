@@ -6,7 +6,7 @@ describe('trace observability', () => {
     const event = createTraceEvent({
       approvalId: 'approval-1',
       fields: {
-        command: 'mmx auth login --api-key sk-cp-secret',
+        command: 'external-tool --api-key sk-cp-secret',
         nested: { authorization: 'Bearer sk-abcdefghijklmnop' },
         textLength: 42
       },
@@ -19,7 +19,7 @@ describe('trace observability', () => {
     expect(event).toMatchObject({
       approvalId: 'approval-1',
       fields: {
-        command: 'mmx auth login --api-key [REDACTED]',
+        command: 'external-tool --api-key [REDACTED]',
         nested: { authorization: 'Bearer [REDACTED]' },
         textLength: 42
       },

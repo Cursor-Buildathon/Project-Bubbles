@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, net, protocol, screen, session, shell, systemPreferences } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
@@ -9,54 +9,62 @@ import {
   createAgentBirthService,
   createAgentRegistry,
   createApprovalService,
-  createCalendarConnector,
   createConnectorRegistry,
-  createEmailConnector,
   createFlowRouter,
   createInitialVoiceSessionState,
   createLandingPageRunner,
   createMemoryExtractor,
-  createMcpClient,
   createMiniMaxCreativeService,
+  createMiniMaxTtsService,
+  createResearchService,
   createStaticSiteServer,
+  createTavilyRemoteMcpClient,
+  createTavilyResearchConnector,
+  createTavilySetupService,
   findAvailablePort,
+  createVoiceTranscriptionService,
   createVoiceApprovalResolver,
-  createWebSearchConnector,
-  GOOGLE_CALENDAR_MCP_CONFIG,
-  GOOGLE_GMAIL_MCP_CONFIG,
   createSecureKeyStore,
   createSqliteMemoryStore,
   createSqliteTimelineStore,
   createTraceEvent,
   generateMiniMaxJson,
+  generateMiniMaxText,
+  isReadResearchPrompt,
+  isResearchFollowUp,
   parseExplicitRememberCommand,
   redactSecrets,
   type AgentBirthDraft,
   type AgentProfile,
   type ApprovalRequest,
   type ArtifactMetadata,
-  type CliEvent,
   type ConnectorConfig,
   type ConnectorHealth,
   type MemoryItem,
   type MemoryStore,
-  type McpLaunchConfig,
   type MiniMaxSetupService,
+  type ResearchReport,
   type SetupStatus,
+  type TavilySetupService,
+  type TavilySetupStatus,
+  type TaskEvent,
   type TimelineEvent,
   type TimelineStore,
   type TraceFieldValue,
   type VoiceEvent,
-  type VoiceSessionState
+  type VoiceSessionState,
+  type VoiceSetupService,
+  type VoiceSetupStatus
 } from '@bubbles/core';
 import { registerApprovalIpc } from './ipc/approvalIpc.js';
 import { createApprovalVoiceIpcController, registerApprovalVoiceIpc } from './ipc/approvalVoiceIpc.js';
 import { registerCapabilityIpc } from './ipc/capabilityIpc.js';
-import { createConnectorUpdateFeatureGate, registerConnectorIpc } from './ipc/connectorIpc.js';
+import { registerConnectorIpc } from './ipc/connectorIpc.js';
 import { createProcessRunner, registerSetupIpc } from './ipc/setupIpc.js';
-import { createNativeSpeechPlayback } from './ipc/speechPlayback.js';
+import { registerTavilySetupIpc } from './ipc/tavilySetupIpc.js';
 import { registerTaskIpc, type TaskIpcController } from './ipc/taskIpc.js';
 import { createVoiceIpcController, registerVoiceIpc } from './ipc/voiceIpc.js';
+import { registerVoiceSetupIpc } from './ipc/voiceSetupIpc.js';
 import { sendToWindow } from './ipc/windowMessaging.js';
 
 protocol.registerSchemesAsPrivileged([
@@ -74,28 +82,25 @@ protocol.registerSchemesAsPrivileged([
 let avatarWindow: BrowserWindow | null = null;
 let panelWindow: BrowserWindow | null = null;
 let setupService: MiniMaxSetupService | undefined;
+let voiceSetupService: VoiceSetupService | undefined;
 let taskController: TaskIpcController | undefined;
 let agentRegistry: ReturnType<typeof createAgentRegistry> | undefined;
 let approvalService: Awaited<ReturnType<typeof createApprovalService>> | undefined;
 let connectorRegistry: Awaited<ReturnType<typeof createConnectorRegistry>> | undefined;
 let memoryStore: MemoryStore | undefined;
 let timelineStore: TimelineStore | undefined;
-let generalKeyStore: ReturnType<typeof createSecureKeyStore> | undefined;
-let connectorMcpClient: ReturnType<typeof createMcpClient> | undefined;
+let miniMaxKeyStore: ReturnType<typeof createSecureKeyStore> | undefined;
+let tavilyMcpClient: ReturnType<typeof createTavilyRemoteMcpClient> | undefined;
+let tavilySetupService: TavilySetupService | undefined;
+let latestResearchReport: ResearchReport | undefined;
 let taskLogDir = '';
 let artifactRoot = '';
 const pendingAgentDrafts = new Map<string, AgentBirthDraft>();
-const pendingConnectorActions = new Map<
-  string,
-  { connectorId: 'calendar'; event: { endsAt: string; startsAt: string; title: string; attendees?: string[]; timezone?: string } } | { connectorId: 'email'; draftId: string }
->();
 const pendingLandingPageActions = new Map<string, { request: string }>();
 const staticSiteServers: Array<{ stop: () => void }> = [];
 const voiceTraceIds = new Map<string, string>();
 const voiceEnabled = process.env.BUBBLES_VOICE_ENABLED !== 'false';
 const voiceApprovalsEnabled = voiceEnabled && process.env.BUBBLES_VOICE_APPROVALS_ENABLED !== 'false';
-const gmailRealEnabled = process.env.BUBBLES_CONNECTORS_GMAIL_REAL !== 'false';
-const calendarRealEnabled = process.env.BUBBLES_CONNECTORS_CALENDAR_REAL !== 'false';
 const creativeImageEnabled = process.env.BUBBLES_CREATIVE_IMAGE !== 'false';
 const creativeMusicEnabled = process.env.BUBBLES_CREATIVE_MUSIC !== 'false';
 const landingPageEnabled = process.env.BUBBLES_CODING_LANDING_PAGE !== 'false';
@@ -118,6 +123,7 @@ interface ChatMessage {
   artifacts?: ArtifactMetadata[];
   citations?: Array<{ title: string; url: string; snippet?: string }>;
   text: string;
+  voiceText?: string;
 }
 
 interface AppState {
@@ -129,7 +135,7 @@ interface AppState {
   connectors: ConnectorConfig[];
   messages: ChatMessage[];
   recentMemories: MemoryItem[];
-  taskEvents: CliEvent[];
+  taskEvents: TaskEvent[];
   timelineEvents: TimelineEvent[];
   voiceState: VoiceSessionState;
 }
@@ -289,40 +295,15 @@ function loadRenderer(window: BrowserWindow, windowRole: 'avatar' | 'panel') {
 
 void app.whenReady().then(() => {
   app.setAppUserModelId('com.bubbles.mvp');
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media');
+  });
   registerWindowIpc();
-  const speechPlayback = createNativeSpeechPlayback();
-  registerVoiceIpc(
-    ipcMain,
-    createVoiceIpcController({
-      enabled: voiceEnabled,
-      publish: handleVoiceEvent,
-      speakText: async (input) => {
-        appendTraceEvent('tts.speak_requested', {
-          ttsId: input.ttsId,
-          fields: { textLength: input.text.length }
-        });
-        const result = await speechPlayback.speak(input);
-        appendTraceEvent(result.ok ? 'tts.speak_completed' : 'tts.speak_failed', {
-          ttsId: result.ttsId,
-          fields: {
-            error: result.error,
-            ok: result.ok
-          }
-        });
-        return result;
-      },
-      stopSpeaking: (input) => {
-        const result = speechPlayback.stop(input);
-        appendTraceEvent('tts.stop_requested', {
-          ttsId: result.ttsId,
-          fields: { ok: result.ok }
-        });
-        return result;
-      }
-    })
-  );
+  const userDataPath = app.getPath('userData');
+  taskLogDir = join(userDataPath, 'task-logs');
+  artifactRoot = join(userDataPath, 'artifacts');
   const runCommand = createProcessRunner();
-  connectorMcpClient = createMcpClient({
+  tavilyMcpClient = createTavilyRemoteMcpClient({
     fetch: async (url, init) => {
       const response = await globalThis.fetch(url, init);
       return {
@@ -330,30 +311,56 @@ void app.whenReady().then(() => {
         status: response.status,
         text: () => response.text()
       };
-    },
-    runCommand
+    }
   });
-  generalKeyStore = createSecureKeyStore({ runCommand });
-  setupService = registerSetupIpc({ keyStore: generalKeyStore, onStatusChange: broadcastSetupStatus });
-  const minimaxCliPrefix = join(app.getPath('userData'), 'tools', 'mmx-cli');
+  miniMaxKeyStore = createSecureKeyStore({ runCommand });
+  setupService = registerSetupIpc({ keyStore: miniMaxKeyStore, onStatusChange: broadcastSetupStatus });
+  tavilySetupService = createTavilySetupService({
+    keyStore: miniMaxKeyStore,
+    mcpClient: tavilyMcpClient,
+    onStatusChange: handleTavilySetupStatus
+  });
+  registerTavilySetupIpc(tavilySetupService);
+  voiceSetupService = registerVoiceSetupIpc({
+    enabled: voiceEnabled,
+    getMiniMaxTokenPlanKey: () => miniMaxKeyStore?.getTokenPlanKey() ?? Promise.resolve(undefined),
+    keyStore: miniMaxKeyStore,
+    onStatusChange: broadcastVoiceSetupStatus
+  });
+  registerVoicePermissionIpc();
+  registerVoiceIpc(
+    ipcMain,
+    createVoiceIpcController({
+      enabled: voiceEnabled,
+      publish: handleVoiceEvent,
+      speakText: speakWithMiniMax,
+      stopSpeaking: (input) => {
+        const ttsId = input?.ttsId ?? 'tts-current';
+        appendTraceEvent('tts.stop_requested', {
+          ttsId,
+          fields: { ok: true }
+        });
+        return { ok: true, ttsId };
+      },
+      transcribeAudio: transcribeVoiceAudio
+    })
+  );
   const projectRoot = resolveProjectRoot();
   agentRegistry = createAgentRegistry({ agentsRoot: join(projectRoot, 'agents') });
   void hydrateAgentState();
   void hydrateMemoryState().then(initializeSafetyIpc);
-  taskLogDir = join(app.getPath('userData'), 'task-logs');
-  artifactRoot = join(app.getPath('userData'), 'artifacts');
   registerLogIpc();
   registerArtifactProtocol();
   registerCapabilityIpc({ artifactRoot });
   taskController = registerTaskIpc({
     logDir: taskLogDir,
-    minimaxCliPrefix,
+    getMiniMaxApiKey: () => miniMaxKeyStore?.getTokenPlanKey() ?? Promise.resolve(undefined),
     getActiveAgentId: () => appState.activeAgent?.id ?? 'general-assistant',
     getMemoryContext: (_userText, activeAgentId) =>
       memoryStore?.query({ agentId: activeAgentId, limit: 8 }) ?? Promise.resolve([]),
     onTaskEvent: handleTaskEvent,
     onTaskStarted: handleTaskStarted,
-    preflight: preflightMiniMaxCli
+    preflight: preflightMiniMaxApi
   });
   createWindow();
 
@@ -381,10 +388,6 @@ function registerWindowIpc() {
     }
 
     if (await handleRememberCommand(trimmedText)) {
-      return appState;
-    }
-
-    if (await handleConnectorSetupCommand(trimmedText)) {
       return appState;
     }
 
@@ -420,10 +423,10 @@ function registerWindowIpc() {
   });
 
   ipcMain.handle('agents:preview-birth', async (_event, request: string) => {
-    const apiKey = await generalKeyStore?.getGeneralApiKey();
+    const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
 
     if (!apiKey) {
-      throw new Error('MiniMax General API key is required before agent birth.');
+      throw new Error('MiniMax Token Plan key is required before agent birth.');
     }
 
     const service = createAgentBirthService({
@@ -555,6 +558,110 @@ function registerLogIpc() {
   });
 }
 
+function registerVoicePermissionIpc() {
+  ipcMain.handle('voice:request-microphone-access', async () => {
+    if (process.platform !== 'darwin') {
+      return { ok: true as const, status: 'granted' };
+    }
+
+    const granted = await systemPreferences.askForMediaAccess('microphone');
+    return { ok: granted, status: granted ? 'granted' : 'denied' };
+  });
+
+  ipcMain.handle('voice:open-microphone-settings', async () => {
+    const url =
+      process.platform === 'darwin'
+        ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
+        : process.platform === 'win32'
+          ? 'ms-settings:privacy-microphone'
+          : '';
+
+    if (!url) {
+      return { ok: false as const, error: 'Open your system settings and allow microphone access for Bubbles.' };
+    }
+
+    await shell.openExternal(url);
+    return { ok: true as const };
+  });
+}
+
+async function transcribeVoiceAudio(input: { audioDataUrl: string; mimeType: string }) {
+  const [geminiApiKey, openAiApiKey] = await Promise.all([
+    readOptionalKey(() => miniMaxKeyStore?.getGeminiVoiceKey() ?? Promise.resolve(undefined)),
+    readOptionalKey(() => miniMaxKeyStore?.getOpenAiVoiceKey() ?? Promise.resolve(undefined))
+  ]);
+  const service = createVoiceTranscriptionService({
+    geminiApiKey,
+    openAiApiKey
+  });
+  const result = await service.transcribe({
+    audioDataUrl: input.audioDataUrl,
+    mimeType: input.mimeType
+  });
+
+  if (result.ok) {
+    return result;
+  }
+
+  return {
+    ok: false as const,
+    error: result.error,
+    provider: result.provider ?? (geminiApiKey ? 'gemini' : openAiApiKey ? 'openai' : 'gemini'),
+    reason: result.reason,
+    retryable: result.retryable
+  };
+}
+
+async function readOptionalKey(read: () => Promise<string | undefined>) {
+  try {
+    return await read();
+  } catch {
+    return undefined;
+  }
+}
+
+async function speakWithMiniMax(input: { text: string; ttsId: string }) {
+  appendTraceEvent('tts.speak_requested', {
+    ttsId: input.ttsId,
+    fields: { textLength: input.text.length }
+  });
+
+  const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
+
+  if (!apiKey) {
+    const result = { ok: false as const, ttsId: input.ttsId, error: 'MiniMax Token Plan key is required for voice playback.' };
+    appendTraceEvent('tts.speak_failed', {
+      ttsId: result.ttsId,
+      fields: { error: result.error, ok: false }
+    });
+    return result;
+  }
+
+  const service = createMiniMaxTtsService({ apiKey });
+  const result = await service.speak({
+    artifactDir: join(resolveArtifactRoot(), 'tts'),
+    text: input.text,
+    ttsId: input.ttsId
+  });
+
+  appendTraceEvent(result.ok ? 'tts.speak_completed' : 'tts.speak_failed', {
+    ttsId: result.ttsId,
+    fields: {
+      error: result.ok ? undefined : result.error,
+      ok: result.ok
+    }
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  return {
+    ...result,
+    audioUrl: toArtifactUrl(result.audioPath)
+  };
+}
+
 function appendTraceEvent(
   name: string,
   input: {
@@ -675,6 +782,56 @@ function broadcastSetupStatus(status: SetupStatus) {
   sendToWindow(panelWindow, 'setup:status', status);
 }
 
+function broadcastVoiceSetupStatus(status: VoiceSetupStatus) {
+  sendToWindow(avatarWindow, 'voice-setup:status', status);
+  sendToWindow(panelWindow, 'voice-setup:status', status);
+}
+
+function broadcastTavilySetupStatus(status: TavilySetupStatus) {
+  sendToWindow(avatarWindow, 'tavily:status', status);
+  sendToWindow(panelWindow, 'tavily:status', status);
+}
+
+function handleTavilySetupStatus(status: TavilySetupStatus) {
+  broadcastTavilySetupStatus(status);
+  void syncTavilyConnectorStatus(status);
+}
+
+async function syncTavilyConnectorStatus(status: TavilySetupStatus) {
+  if (!connectorRegistry) {
+    return;
+  }
+
+  const connector = await connectorRegistry.get('tavily-research');
+
+  if (!connector) {
+    return;
+  }
+
+  if (status.state === 'ready') {
+    await connectorRegistry.setHealth('tavily-research', {
+      authStatus: 'ready',
+      healthStatus: connector.enabled ? 'healthy' : 'unknown'
+    });
+  } else if (status.state === 'needs_api_key') {
+    await connectorRegistry.setHealth('tavily-research', {
+      authStatus: 'not_configured',
+      healthStatus: 'unknown'
+    });
+  } else if (status.state === 'setup_error') {
+    await connectorRegistry.setHealth('tavily-research', {
+      authStatus: 'error',
+      healthStatus: 'unhealthy',
+      lastError: status.error
+    });
+  } else {
+    return;
+  }
+
+  await hydrateConnectorState();
+  broadcastAppState();
+}
+
 async function hydrateAgentState() {
   if (!agentRegistry) {
     return;
@@ -727,10 +884,6 @@ async function initializeSafetyIpc() {
     registerConnectorIpc({
       checkHealth: checkConnectorHealth,
       connectorRegistry,
-      normalizeUpdate: createConnectorUpdateFeatureGate({
-        calendarRealEnabled,
-        gmailRealEnabled
-      }),
       onChanged: async () => {
         await hydrateConnectorState();
         broadcastAppState();
@@ -760,13 +913,51 @@ async function routeCapabilityFlow(userText: string) {
   await hydrateApprovalState();
   await hydrateConnectorState();
 
+  if (latestResearchReport && isReadResearchPrompt(userText)) {
+    appState.messages = [
+      ...appState.messages,
+      { id: Date.now(), author: 'user', text: userText },
+      {
+        id: Date.now() + 1,
+        author: 'bubbles',
+        citations: latestResearchReport.citations,
+        text: latestResearchReport.text,
+        voiceText: latestResearchReport.text
+      }
+    ];
+    appState.avatarState = 'celebrating';
+    broadcastAppState();
+    return true;
+  }
+
+  if (latestResearchReport && isResearchFollowUp(userText)) {
+    const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
+
+    if (apiKey) {
+      const service = createResearchService({
+        generateText: (prompt) => generateMiniMaxText(apiKey, prompt)
+      });
+      latestResearchReport = await service.answerFollowUp({ question: userText, report: latestResearchReport });
+      await persistResearchReport(latestResearchReport, 'Research follow-up answered');
+      appState.messages = [
+        ...appState.messages,
+        { id: Date.now(), author: 'user', text: userText },
+        {
+          id: Date.now() + 1,
+          author: 'bubbles',
+          citations: latestResearchReport.citations,
+          text: latestResearchReport.text,
+          voiceText: latestResearchReport.voiceText
+        }
+      ];
+      appState.avatarState = 'celebrating';
+      await hydrateMemoryState();
+      broadcastAppState();
+      return true;
+    }
+  }
+
   const router = createFlowRouter({
-    connectors: {
-      calendar: createCalendarConnector({ mcpClient: createRuntimeMcpClient() }),
-      email: createEmailConnector({ mcpClient: createRuntimeMcpClient() }),
-      get: (id) => connectorRegistry?.get(id) ?? Promise.resolve(undefined),
-      webSearch: createWebSearchConnector({ mcpClient: createRuntimeMcpClient() })
-    },
     creative: {
       run: (request) => runCreativeCapability(request)
     },
@@ -776,9 +967,11 @@ async function routeCapabilityFlow(userText: string) {
       }
 
       const created = await approvalService.create(approval);
-      rememberConnectorAction(created);
       rememberLandingPageAction(created);
       return created;
+    },
+    research: {
+      run: (query) => runTavilyResearch(query)
     }
   });
   const result = await router.route({
@@ -793,7 +986,14 @@ async function routeCapabilityFlow(userText: string) {
   appState.messages = [
     ...appState.messages,
     { id: Date.now(), author: 'user', text: userText },
-    { id: Date.now() + 1, author: 'bubbles', artifacts: result.artifacts, citations: result.citations, text: result.message }
+    {
+      id: Date.now() + 1,
+      author: 'bubbles',
+      artifacts: result.artifacts,
+      citations: result.citations,
+      text: result.message,
+      voiceText: result.voiceText
+    }
   ];
   appState.avatarState = result.avatarState;
   appState.approvals = (await approvalService?.list()) ?? appState.approvals;
@@ -809,14 +1009,75 @@ async function runCreativeCapability(request: { kind: 'image' | 'music'; prompt:
     return { ok: false as const, error: `${request.kind === 'image' ? 'Image' : 'Music'} generation is disabled.` };
   }
 
+  const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
+
+  if (!apiKey) {
+    return { ok: false as const, error: 'MiniMax Token Plan key is required for media generation.' };
+  }
+
   const service = createMiniMaxCreativeService({
-    runCommand: createProcessRunner()
+    apiKey
   });
   return service.run({
     artifactDir: join(resolveArtifactRoot(), `${request.kind}-${Date.now()}`),
     fixture: minimaxMediaFixture,
     kind: request.kind,
     prompt: request.prompt
+  });
+}
+
+async function runTavilyResearch(query: string) {
+  const minimaxApiKey = await miniMaxKeyStore?.getTokenPlanKey();
+  const tavilyApiKey = await miniMaxKeyStore?.getTavilyKey();
+  const connector = await connectorRegistry?.get('tavily-research');
+
+  if (!minimaxApiKey) {
+    return { ok: false as const, error: 'MiniMax Token Plan key is required to synthesize Tavily research.' };
+  }
+
+  if (!tavilyApiKey || !connector || !tavilyMcpClient) {
+    return { ok: false as const, error: 'Tavily Research is not connected. Add a Tavily API key in Connectors.' };
+  }
+
+  const tavily = createTavilyResearchConnector({ mcpClient: tavilyMcpClient });
+  const search = await tavily.search({ ...connector, authStatus: 'ready' }, query, { apiKey: tavilyApiKey });
+
+  if (!search.ok) {
+    return { ok: false as const, error: search.error };
+  }
+
+  const service = createResearchService({
+    generateText: (prompt) => generateMiniMaxText(minimaxApiKey, prompt)
+  });
+  latestResearchReport = await service.createReport({
+    extractedContent: search.extractedContent,
+    query,
+    results: search.results
+  });
+  await persistResearchReport(latestResearchReport, 'Research completed');
+  return { ok: true as const, report: latestResearchReport };
+}
+
+async function persistResearchReport(report: ResearchReport, title: string) {
+  const summary = await memoryStore?.create({
+    agentId: 'research-agent',
+    content: `Research: ${report.query}\n\n${report.text.slice(0, 1200)}`,
+    sourceTaskId: report.id,
+    tags: ['research'],
+    type: 'task_summary',
+    importance: 4
+  });
+  await timelineStore?.append({
+    agentId: 'research-agent',
+    memoryId: summary?.id,
+    metadata: {
+      citations: report.citations.map((citation) => ({ title: citation.title, url: citation.url })),
+      query: report.query
+    },
+    summary: report.text.slice(0, 500),
+    taskId: report.id,
+    title,
+    type: 'task_completed'
   });
 }
 
@@ -828,60 +1089,8 @@ function resolveArtifactRoot() {
   return artifactRoot;
 }
 
-function createRuntimeMcpClient() {
-  return {
-    call: (config: McpLaunchConfig, method: string, params: Record<string, unknown>) =>
-      connectorMcpClient?.call(resolveMcpToken(config), method, params) ??
-      Promise.resolve({ ok: false as const, error: 'MCP client is unavailable.' })
-  };
-}
-
-function resolveMcpToken(config: McpLaunchConfig): McpLaunchConfig {
-  if (!config.httpUrl || config.accessToken) {
-    return config;
-  }
-
-  const matchingConnector = appState.connectors.find((connector) => connector.launchConfig.httpUrl === config.httpUrl);
-  const accessTokenEnv = matchingConnector?.launchConfig.oauth?.accessTokenEnv;
-  const accessToken = accessTokenEnv ? process.env[accessTokenEnv] : undefined;
-  return {
-    ...config,
-    accessToken
-  };
-}
-
-function rememberConnectorAction(approval: ApprovalRequest) {
-  if (approval.actionType === 'send_email') {
-    const draftId = stringPreviewValue(approval.preview.draftId);
-
-    if (draftId) {
-      pendingConnectorActions.set(approval.id, { connectorId: 'email', draftId });
-    }
-  }
-
-  if (approval.actionType === 'calendar_update') {
-    const newEvent = approval.preview.newEvent;
-
-    if (newEvent && typeof newEvent === 'object' && !Array.isArray(newEvent)) {
-      const event = newEvent as Record<string, unknown>;
-      const title = stringPreviewValue(event.title);
-      const startsAt = stringPreviewValue(event.startsAt);
-      const endsAt = stringPreviewValue(event.endsAt);
-
-      if (title && startsAt && endsAt) {
-        pendingConnectorActions.set(approval.id, {
-          connectorId: 'calendar',
-          event: {
-            attendees: arrayOfStrings(event.attendees),
-            endsAt,
-            startsAt,
-            timezone: stringPreviewValue(event.timezone),
-            title
-          }
-        });
-      }
-    }
-  }
+function toArtifactUrl(path: string) {
+  return `bubbles-artifact://local/${encodeURIComponent(path)}`;
 }
 
 function rememberLandingPageAction(approval: ApprovalRequest) {
@@ -894,48 +1103,6 @@ function rememberLandingPageAction(approval: ApprovalRequest) {
   if (request) {
     pendingLandingPageActions.set(approval.id, { request });
   }
-}
-
-async function runApprovedConnectorAction(approval: ApprovalRequest) {
-  const pendingAction = pendingConnectorActions.get(approval.id);
-
-  if (!pendingAction || !connectorRegistry) {
-    return false;
-  }
-
-  pendingConnectorActions.delete(approval.id);
-  const config = await connectorRegistry.get(pendingAction.connectorId);
-
-  if (!config) {
-    appState.messages = [...appState.messages, { id: Date.now() + 1, author: 'bubbles', text: 'The connector is no longer available.' }];
-    return true;
-  }
-
-  if (pendingAction.connectorId === 'email') {
-    const connector = createEmailConnector({ mcpClient: createRuntimeMcpClient() });
-    const result = await connector.sendDraft(config, pendingAction.draftId);
-    appState.messages = [
-      ...appState.messages,
-      {
-        id: Date.now() + 1,
-        author: 'bubbles',
-        text: result.ok ? 'Approved. I sent the email draft.' : result.error
-      }
-    ];
-    return true;
-  }
-
-  const connector = createCalendarConnector({ mcpClient: createRuntimeMcpClient() });
-  const result = await connector.createEvent(config, pendingAction.event);
-  appState.messages = [
-    ...appState.messages,
-    {
-      id: Date.now() + 1,
-      author: 'bubbles',
-      text: result.ok ? `Approved. I created ${result.event.title} on your calendar.` : result.error
-    }
-  ];
-  return true;
 }
 
 async function runApprovedLandingPageAction(approval: ApprovalRequest) {
@@ -1099,7 +1266,7 @@ function arrayOfStrings(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined;
 }
 
-function checkConnectorHealth(connector: ConnectorConfig): ConnectorHealth {
+async function checkConnectorHealth(connector: ConnectorConfig): Promise<ConnectorHealth> {
   if (!connector.enabled) {
     return {
       authStatus: 'not_configured',
@@ -1108,35 +1275,16 @@ function checkConnectorHealth(connector: ConnectorConfig): ConnectorHealth {
     };
   }
 
-  if (connector.mode === 'fixture') {
-    return {
-      authStatus: 'ready',
-      healthStatus: 'healthy'
-    };
-  }
+  if (connector.type === 'tavily_research') {
+    const tavilyApiKey = await miniMaxKeyStore?.getTavilyKey();
 
-  if (connector.launchConfig.httpUrl && connector.launchConfig.oauth) {
-    const tokenEnv = connector.launchConfig.oauth.accessTokenEnv;
-
-    if (!tokenEnv || !process.env[tokenEnv]) {
-      return {
-        authStatus: 'needs_auth',
-        healthStatus: 'unhealthy',
-        lastError: 'OAuth token is not available. Complete the Google Workspace MCP auth flow or use fixture mode.'
-      };
-    }
-
-    return {
-      authStatus: 'ready',
-      healthStatus: 'healthy'
-    };
-  }
-
-  if (connector.launchConfig.command) {
-    return {
-      authStatus: 'ready',
-      healthStatus: 'healthy'
-    };
+    return tavilyApiKey
+      ? { authStatus: 'ready', healthStatus: 'healthy' }
+      : {
+          authStatus: 'needs_auth',
+          healthStatus: 'unhealthy',
+          lastError: 'Add a Tavily API key before running live web research.'
+        };
   }
 
   return {
@@ -1188,7 +1336,6 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
     ];
   }
 
-  await runApprovedConnectorAction(approval);
   await runApprovedLandingPageAction(approval);
 
   await hydrateAgentState();
@@ -1236,98 +1383,8 @@ async function handleRememberCommand(userText: string) {
   return true;
 }
 
-async function handleConnectorSetupCommand(userText: string) {
-  const text = userText.toLowerCase();
-
-  if (!/\b(connect|setup|set up|enable|use)\b/.test(text) || !/\b(gmail|email|calendar|web search|search)\b/.test(text)) {
-    return false;
-  }
-
-  await hydrateConnectorState();
-
-  if (!connectorRegistry) {
-    return false;
-  }
-
-  if (/\b(gmail|email)\b/.test(text)) {
-    await connectorRegistry.update('email', connectorSetupUpdate('email', /\bfixture\b/.test(text)));
-    await hydrateConnectorState();
-    appendConnectorSetupMessage(
-      userText,
-      /\bfixture\b/.test(text)
-        ? 'Email fixture mode is ready for Gmail read and reply approval tests.'
-        : 'Gmail setup is staged with gmail.readonly, gmail.compose, and gmail.send. Complete OAuth, or switch to fixture mode for CI.'
-    );
-    return true;
-  }
-
-  if (/\bcalendar\b/.test(text)) {
-    await connectorRegistry.update('calendar', connectorSetupUpdate('calendar', /\bfixture\b/.test(text)));
-    await hydrateConnectorState();
-    appendConnectorSetupMessage(
-      userText,
-      /\bfixture\b/.test(text)
-        ? 'Calendar fixture mode is ready for approval-gated scheduling tests.'
-        : 'Calendar setup is staged with calendar.events.owned plus read/freebusy scopes. Complete OAuth, or switch to fixture mode for CI.'
-    );
-    return true;
-  }
-
-  await connectorRegistry.update('web-search', connectorSetupUpdate('web-search', true));
-  await hydrateConnectorState();
-  appendConnectorSetupMessage(userText, 'Web Search fixture mode is ready and will return cited research results.');
-  return true;
-}
-
-function connectorSetupUpdate(
-  connectorId: 'calendar' | 'email' | 'web-search',
-  fixture: boolean
-): Partial<ConnectorConfig> {
-  if (fixture || connectorId === 'web-search') {
-    return {
-      allowedAgents: connectorId === 'web-search' ? ['research-agent'] : ['email-calendar-assistant'],
-      authStatus: 'ready',
-      enabled: true,
-      healthStatus: 'healthy',
-      mode: 'fixture',
-      requiredApproval: 'preview_sensitive_actions'
-    };
-  }
-
-  if ((connectorId === 'email' && !gmailRealEnabled) || (connectorId === 'calendar' && !calendarRealEnabled)) {
-    return connectorSetupUpdate(connectorId, true);
-  }
-
-  const setup = connectorId === 'email' ? GOOGLE_GMAIL_MCP_CONFIG : GOOGLE_CALENDAR_MCP_CONFIG;
-  return {
-    allowedAgents: ['email-calendar-assistant'],
-    authStatus: 'needs_auth',
-    enabled: true,
-    healthStatus: 'unhealthy',
-    launchConfig: {
-      httpUrl: setup.httpUrl,
-      oauth: {
-        provider: 'google-workspace',
-        scopes: [...setup.scopes]
-      }
-    },
-    mode: 'real',
-    requiredApproval: 'preview_sensitive_actions'
-  };
-}
-
-function appendConnectorSetupMessage(userText: string, message: string) {
-  appState.messages = [
-    ...appState.messages,
-    { id: Date.now(), author: 'user', text: redactSecrets(userText) },
-    { id: Date.now() + 1, author: 'bubbles', text: message }
-  ];
-  appState.avatarState = 'working';
-  broadcastAppState();
-}
-
 async function extractMemoriesFromMessage(userText: string) {
-  if (!memoryStore || !timelineStore || !generalKeyStore) {
+  if (!memoryStore || !timelineStore || !miniMaxKeyStore) {
     return;
   }
 
@@ -1337,7 +1394,7 @@ async function extractMemoriesFromMessage(userText: string) {
     return;
   }
 
-  const apiKey = await generalKeyStore.getGeneralApiKey();
+  const apiKey = await miniMaxKeyStore.getTokenPlanKey();
 
   if (!apiKey) {
     return;
@@ -1396,7 +1453,7 @@ function handleTaskStarted(userText: string, taskId: string) {
   broadcastAppState();
 }
 
-function handleTaskEvent(event: CliEvent, avatarState: AvatarState) {
+function handleTaskEvent(event: TaskEvent, avatarState: AvatarState) {
   appState.taskEvents = [...appState.taskEvents, event];
   appState.avatarState = avatarState;
   appendTraceEvent(event.type, {
@@ -1421,7 +1478,7 @@ function handleTaskEvent(event: CliEvent, avatarState: AvatarState) {
   }
 
   if (event.type === 'task.error' && isMiniMaxHealthFailure(event)) {
-    void setupService?.markCliUnhealthy(formatTaskError(event)).then(broadcastSetupStatus);
+    void setupService?.markMiniMaxUnhealthy(formatTaskError(event)).then(broadcastSetupStatus);
   }
 
   broadcastAppState();
@@ -1429,7 +1486,7 @@ function handleTaskEvent(event: CliEvent, avatarState: AvatarState) {
   sendToWindow(panelWindow, 'tasks:event', event);
 }
 
-async function persistFinalTaskEvent(event: CliEvent) {
+async function persistFinalTaskEvent(event: TaskEvent) {
   const text = formatTaskMessage(event);
   const eventType =
     event.type === 'task.result' ? 'task_completed' : event.type === 'task.cancelled' ? 'task_cancelled' : 'task_failed';
@@ -1455,7 +1512,7 @@ async function persistFinalTaskEvent(event: CliEvent) {
   broadcastAppState();
 }
 
-function formatTaskMessage(event: CliEvent) {
+function formatTaskMessage(event: TaskEvent) {
   if (event.type === 'task.result') {
     return stringPayload(event.payload.text) ?? 'Done. I finished that task.';
   }
@@ -1464,10 +1521,10 @@ function formatTaskMessage(event: CliEvent) {
     return 'I cancelled that task.';
   }
 
-  return `I hit a CLI error: ${formatTaskError(event)}`;
+  return `I hit a MiniMax API error: ${formatTaskError(event)}`;
 }
 
-async function preflightMiniMaxCli() {
+async function preflightMiniMaxApi() {
   const qaDelayMs = Number(process.env.BUBBLES_QA_TASK_DELAY_MS ?? 0);
   if (Number.isFinite(qaDelayMs) && qaDelayMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, qaDelayMs));
@@ -1500,27 +1557,27 @@ async function preflightMiniMaxCli() {
   return {
     ok: false as const,
     category: categorizeSetupFailure(status),
-    error: status.cli.error ?? status.tokenPlan.error ?? status.generalApi.error ?? 'MiniMax CLI is not ready. Use Recheck CLI in Settings.',
-    hint: status.cli.error ? undefined : 'Open Settings and use Recheck CLI after checking your network or key setup.'
+    error: status.tokenPlan.error ?? 'MiniMax API is not ready. Recheck MiniMax in Settings.',
+    hint: 'Open Settings and recheck MiniMax after checking your network or Token Plan key.'
   };
 }
 
-function formatTaskError(event: CliEvent) {
+function formatTaskError(event: TaskEvent) {
   return (
     stringPayload(event.payload.errorMessage) ??
     stringPayload(event.payload.error) ??
     stringPayload(event.payload.rawMessage) ??
     stringPayload(event.payload.reason) ??
-    'I hit a CLI error while working on that task.'
+    'I hit a MiniMax API error while working on that task.'
   );
 }
 
-function isMiniMaxHealthFailure(event: CliEvent) {
+function isMiniMaxHealthFailure(event: TaskEvent) {
   return event.payload.category === 'network' || event.payload.category === 'auth' || event.payload.category === 'quota';
 }
 
 function categorizeSetupFailure(status: SetupStatus) {
-  const text = `${status.cli.error ?? ''} ${status.tokenPlan.error ?? ''} ${status.generalApi.error ?? ''}`;
+  const text = status.tokenPlan.error ?? '';
 
   if (/network|connection|proxy|timeout/i.test(text)) {
     return 'network';

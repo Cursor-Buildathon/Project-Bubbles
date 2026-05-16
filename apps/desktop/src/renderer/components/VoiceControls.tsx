@@ -1,4 +1,4 @@
-import { Mic, MicOff, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Radio, VolumeX } from 'lucide-react';
 import { type VoiceSessionState } from '@bubbles/core';
 import { CaptionBar } from './CaptionBar';
 
@@ -7,7 +7,10 @@ interface VoiceControlsProps {
   onBargeIn: () => void;
   onStartListening: () => void;
   onStopListening: () => void;
+  onToggleWakePhrase: () => void;
   voiceState: VoiceSessionState;
+  wakePhrase: string;
+  wakePhraseEnabled: boolean;
 }
 
 export function VoiceControls({
@@ -15,12 +18,16 @@ export function VoiceControls({
   onBargeIn,
   onStartListening,
   onStopListening,
-  voiceState
+  onToggleWakePhrase,
+  voiceState,
+  wakePhrase,
+  wakePhraseEnabled
 }: VoiceControlsProps) {
   const listening = voiceState.status === 'listening' || voiceState.status === 'processing';
   const speaking = voiceState.status === 'speaking';
   const captionText = voiceState.partialText || voiceState.captionText;
   const buttonLabel = speaking ? 'Barge in' : listening ? 'Stop voice input' : 'Start voice input';
+  const wakeButtonLabel = wakePhraseEnabled ? `Disable ${wakePhrase} wake phrase` : `Enable ${wakePhrase} wake phrase`;
   const statusLabel = statusText(voiceState);
 
   function handleClick() {
@@ -50,6 +57,16 @@ export function VoiceControls({
       >
         <Icon size={18} aria-hidden="true" />
       </button>
+      <button
+        aria-label={wakeButtonLabel}
+        className={wakePhraseEnabled ? 'voice-wake-button voice-wake-button--active' : 'voice-wake-button'}
+        disabled={!chatEnabled || !voiceState.enabled}
+        onClick={onToggleWakePhrase}
+        title={wakeButtonLabel}
+        type="button"
+      >
+        <Radio size={16} aria-hidden="true" />
+      </button>
       <div className="voice-controls__status">
         <span>{statusLabel}</span>
         <CaptionBar text={captionText} />
@@ -64,7 +81,7 @@ function statusText(voiceState: VoiceSessionState) {
   }
 
   if (voiceState.status === 'listening') {
-    return 'Listening';
+    return voiceState.mode === 'always-listening' ? 'Wake phrase listening' : 'Listening';
   }
 
   if (voiceState.status === 'processing') {

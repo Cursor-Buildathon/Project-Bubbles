@@ -665,7 +665,7 @@ button {
 
 .voice-controls {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 40px 34px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 54px;
@@ -693,6 +693,29 @@ button {
 }
 
 .voice-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.voice-wake-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(35, 127, 118, 0.16);
+  border-radius: 8px;
+  color: #526166;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.voice-wake-button--active {
+  border-color: rgba(35, 127, 118, 0.32);
+  color: #165f57;
+  background: #eef8f6;
+}
+
+.voice-wake-button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
 }
@@ -951,6 +974,14 @@ button {
   gap: 10px;
   margin-top: 10px;
   color: #253337;
+}
+
+.setup-screen__voice {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(24, 34, 38, 0.1);
+  margin-top: 4px;
+  padding-top: 12px;
 }
 
 .setup-screen__header,

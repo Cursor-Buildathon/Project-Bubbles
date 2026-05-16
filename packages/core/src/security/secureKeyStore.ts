@@ -1,33 +1,49 @@
 import { redactSecrets } from './redactSecrets.js';
 import { type CommandRunner } from '../shared/commandRunner.js';
 
-const defaultGeneralApiServiceName = 'com.bubbles.minimax.general-api-key';
+const defaultLegacyGeneralApiServiceName = 'com.bubbles.minimax.general-api-key';
 const defaultTokenPlanServiceName = 'com.bubbles.minimax.token-plan-key';
+const defaultGeminiVoiceServiceName = 'com.bubbles.voice.gemini-api-key';
+const defaultOpenAiVoiceServiceName = 'com.bubbles.voice.openai-api-key';
+const defaultTavilyServiceName = 'com.bubbles.tavily.api-key';
 const defaultAccountName = 'minimax';
 
 interface SecureKeyStoreOptions {
   accountName?: string;
+  geminiVoiceServiceName?: string;
+  openAiVoiceServiceName?: string;
   platform?: NodeJS.Platform;
   runCommand: CommandRunner;
-  generalApiServiceName?: string;
+  legacyGeneralApiServiceName?: string;
+  tavilyServiceName?: string;
   tokenPlanServiceName?: string;
 }
 
 export interface SecureKeyStore {
   deleteAllMiniMaxKeys: () => Promise<void>;
-  deleteGeneralApiKey: () => Promise<void>;
+  deleteAllVoiceKeys: () => Promise<void>;
+  deleteGeminiVoiceKey: () => Promise<void>;
+  deleteOpenAiVoiceKey: () => Promise<void>;
+  deleteTavilyKey: () => Promise<void>;
   deleteTokenPlanKey: () => Promise<void>;
-  getGeneralApiKey: () => Promise<string | undefined>;
+  getGeminiVoiceKey: () => Promise<string | undefined>;
+  getOpenAiVoiceKey: () => Promise<string | undefined>;
+  getTavilyKey: () => Promise<string | undefined>;
   getTokenPlanKey: () => Promise<string | undefined>;
-  setGeneralApiKey: (apiKey: string) => Promise<void>;
+  setGeminiVoiceKey: (apiKey: string) => Promise<void>;
+  setOpenAiVoiceKey: (apiKey: string) => Promise<void>;
+  setTavilyKey: (apiKey: string) => Promise<void>;
   setTokenPlanKey: (apiKey: string) => Promise<void>;
 }
 
 export function createSecureKeyStore({
   accountName = defaultAccountName,
-  generalApiServiceName = defaultGeneralApiServiceName,
+  geminiVoiceServiceName = defaultGeminiVoiceServiceName,
+  legacyGeneralApiServiceName = defaultLegacyGeneralApiServiceName,
+  openAiVoiceServiceName = defaultOpenAiVoiceServiceName,
   platform = process.platform,
   runCommand,
+  tavilyServiceName = defaultTavilyServiceName,
   tokenPlanServiceName = defaultTokenPlanServiceName
 }: SecureKeyStoreOptions): SecureKeyStore {
   function assertMacOS() {
@@ -64,46 +80,59 @@ export function createSecureKeyStore({
 
   return {
     async deleteAllMiniMaxKeys() {
-      await Promise.allSettled([deleteKey(generalApiServiceName), deleteKey(tokenPlanServiceName)]);
+      await Promise.allSettled([deleteKey(legacyGeneralApiServiceName), deleteKey(tokenPlanServiceName)]);
     },
 
-    async deleteGeneralApiKey() {
-      await deleteKey(generalApiServiceName);
+    async deleteAllVoiceKeys() {
+      await Promise.allSettled([deleteKey(geminiVoiceServiceName), deleteKey(openAiVoiceServiceName)]);
+    },
+
+    async deleteGeminiVoiceKey() {
+      await deleteKey(geminiVoiceServiceName);
+    },
+
+    async deleteOpenAiVoiceKey() {
+      await deleteKey(openAiVoiceServiceName);
+    },
+
+    async deleteTavilyKey() {
+      await deleteKey(tavilyServiceName);
     },
 
     async deleteTokenPlanKey() {
       await deleteKey(tokenPlanServiceName);
     },
 
-    async getGeneralApiKey() {
-      return getKey(generalApiServiceName);
+    async getGeminiVoiceKey() {
+      return getKey(geminiVoiceServiceName);
+    },
+
+    async getOpenAiVoiceKey() {
+      return getKey(openAiVoiceServiceName);
+    },
+
+    async getTavilyKey() {
+      return getKey(tavilyServiceName);
     },
 
     async getTokenPlanKey() {
       return getKey(tokenPlanServiceName);
     },
 
-    async setGeneralApiKey(apiKey: string) {
-      await setKey(generalApiServiceName, apiKey);
+    async setGeminiVoiceKey(apiKey: string) {
+      await setKey(geminiVoiceServiceName, apiKey);
+    },
+
+    async setOpenAiVoiceKey(apiKey: string) {
+      await setKey(openAiVoiceServiceName, apiKey);
+    },
+
+    async setTavilyKey(apiKey: string) {
+      await setKey(tavilyServiceName, apiKey);
     },
 
     async setTokenPlanKey(apiKey: string) {
       await setKey(tokenPlanServiceName, apiKey);
     }
   };
-}
-
-export function createLegacySecureKeyStore({
-  accountName = defaultAccountName,
-  platform = process.platform,
-  runCommand,
-  serviceName = 'com.bubbles.minimax-api-key'
-}: SecureKeyStoreOptions & { serviceName?: string }) {
-  return createSecureKeyStore({
-    accountName,
-    generalApiServiceName: serviceName,
-    platform,
-    runCommand,
-    tokenPlanServiceName: `${serviceName}.token-plan`
-  });
 }

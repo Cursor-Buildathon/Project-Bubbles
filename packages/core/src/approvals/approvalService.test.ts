@@ -12,10 +12,10 @@ describe('createApprovalService', () => {
 
     const approval = await service.create({
       taskId: 'task-1',
-      agentId: 'email-calendar-assistant',
-      actionType: 'send_email',
-      title: 'Send email',
-      explanation: 'Bubbles wants to send this reply.',
+      agentId: 'general-assistant',
+      actionType: 'external_data_send',
+      title: 'Send external data',
+      explanation: 'Bubbles wants to send this data.',
       preview: {
         to: 'friend@example.com',
         body: 'Token sk-cp-secret should not leak'
@@ -24,8 +24,8 @@ describe('createApprovalService', () => {
 
     expect(approval).toMatchObject({
       taskId: 'task-1',
-      agentId: 'email-calendar-assistant',
-      actionType: 'send_email',
+      agentId: 'general-assistant',
+      actionType: 'external_data_send',
       risk: 'high',
       status: 'pending'
     });

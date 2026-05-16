@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createInitialVoiceSessionState, type VoiceEvent, type VoiceTurnContext } from './voiceTypes.js';
 
 describe('voiceTypes', () => {
-  it('creates a disabled push-to-talk macOS voice state by default', () => {
+  it('creates a disabled push-to-talk Gemini voice state by default', () => {
     expect(createInitialVoiceSessionState()).toEqual({
       enabled: false,
       mode: 'push-to-talk',
-      provider: 'native-macos',
+      provider: 'gemini',
       status: 'idle',
       activeTurnId: undefined,
       partialText: '',
@@ -20,7 +20,7 @@ describe('voiceTypes', () => {
       voiceTurnId: 'voice-1',
       traceId: 'trace-1',
       inputMode: 'voice',
-      sttProvider: 'native-macos',
+      sttProvider: 'gemini',
       spokenSummaryPreferred: true,
       locale: 'en-US',
       timezone: 'America/Los_Angeles'

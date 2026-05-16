@@ -45,7 +45,7 @@ export function ChatSurface({ chatEnabled, draft, messages, onDraftChange, onSub
           <div className="chat-window__empty">
             <Sparkles size={20} aria-hidden="true" />
             <h2>{chatEnabled ? 'Ready when you are.' : 'Connect MiniMax to start chatting.'}</h2>
-            <p>{chatEnabled ? 'Ask Bubbles to plan, research, create an agent, or remember a preference.' : 'Setup keeps chat disabled until the API and CLI are ready.'}</p>
+            <p>{chatEnabled ? 'Ask Bubbles to plan, research, create an agent, or remember a preference.' : 'Setup keeps chat disabled until the MiniMax API is ready.'}</p>
           </div>
         )}
       </div>

@@ -17,6 +17,7 @@ interface ChatMessage {
   artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string; title?: string }>;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
   text: string;
+  voiceText?: string;
 }
 
 interface BubblesAppState {
@@ -28,7 +29,7 @@ interface BubblesAppState {
   connectors: ConnectorConfig[];
   messages: ChatMessage[];
   recentMemories: MemoryItem[];
-  taskEvents: CliEvent[];
+  taskEvents: TaskEvent[];
   timelineEvents: TimelineEvent[];
   voiceState: VoiceSessionState;
 }
@@ -48,15 +49,38 @@ type VoiceEvent =
   | { type: 'voice.barge_in'; voiceTurnId: string; stoppedTtsId?: string }
   | { type: 'voice.error'; voiceTurnId?: string; error: string; provider: string };
 
+type TranscriptionFailureReason = 'auth' | 'network' | 'not_configured' | 'provider' | 'quota' | 'rate_limit';
+
 interface VoiceSessionState {
   enabled: boolean;
   mode: 'push-to-talk' | 'always-listening';
-  provider: 'native-macos' | 'fixture-transcript';
+  provider: 'gemini' | 'openai' | 'fixture-transcript';
   status: 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
   activeTurnId?: string;
   partialText: string;
   captionText: string;
   lastError?: string;
+}
+
+interface VoiceProviderSetupStatus {
+  present: boolean;
+  verified: boolean;
+  error?: string;
+}
+
+interface VoiceSetupStatus {
+  enabled: boolean;
+  stt: {
+    ready: boolean;
+    preferredProvider?: 'gemini' | 'openai';
+    gemini: VoiceProviderSetupStatus;
+    openai: VoiceProviderSetupStatus;
+  };
+  tts: {
+    provider: 'minimax';
+    ready: boolean;
+  };
+  updatedAt: string;
 }
 
 interface VoiceIpcResult {
@@ -85,11 +109,8 @@ interface ApprovalRequest {
   taskId: string;
   agentId: string;
   actionType:
-    | 'send_email'
-    | 'calendar_update'
     | 'file_write'
     | 'shell_command'
-    | 'cli_install'
     | 'agent_file_create'
     | 'external_data_send';
   risk: 'low' | 'medium' | 'high';
@@ -104,22 +125,26 @@ interface ApprovalRequest {
 interface ConnectorConfig {
   id: string;
   name: string;
-  type: 'web_search' | 'local_files' | 'email' | 'calendar';
+  type: 'tavily_research';
   enabled: boolean;
-  mode: 'real' | 'fixture';
+  mode: 'real';
   authStatus: 'not_configured' | 'needs_auth' | 'ready' | 'error';
   healthStatus: 'unknown' | 'healthy' | 'unhealthy';
   allowedAgents: string[];
   requiredApproval: 'none' | 'preview_sensitive_actions' | 'preview_all_actions';
   launchConfig: {
-    command?: string;
-    args?: string[];
-    env?: Record<string, string>;
-    approvedRoots?: string[];
-    fixture?: Record<string, unknown>;
+    maxResults?: number;
+    remoteUrl?: string;
+    searchDepth?: 'basic' | 'advanced';
   };
   lastCheckedAt?: string;
   lastError?: string;
+  updatedAt: string;
+}
+
+interface TavilySetupStatus {
+  error?: string;
+  state: 'needs_api_key' | 'verifying' | 'ready' | 'setup_error';
   updatedAt: string;
 }
 
@@ -144,7 +169,7 @@ interface AgentBirthDraft {
   skillsMarkdown: string;
 }
 
-interface CliEvent {
+interface TaskEvent {
   taskId: string;
   type:
     | 'task.received'
@@ -162,36 +187,18 @@ interface CliEvent {
 }
 
 type SetupState =
-  | 'needs_general_api_key'
-  | 'verifying_general_api'
   | 'needs_token_plan_key'
-  | 'checking_cli'
-  | 'needs_cli_install'
-  | 'authenticating_cli'
-  | 'verifying_cli'
+  | 'verifying_token_plan'
   | 'ready'
   | 'setup_error';
 
 interface SetupStatus {
   state: SetupState;
   mode: 'not_configured' | 'full';
-  generalApi: {
-    verified: boolean;
-    lastCheckedAt?: string;
-    error?: string;
-  };
   tokenPlan: {
     present: boolean;
     verified: boolean;
     lastCheckedAt?: string;
-    error?: string;
-  };
-  cli: {
-    installed: boolean;
-    path?: string;
-    authenticated: boolean;
-    verified: boolean;
-    installCommandPreview: string;
     error?: string;
   };
   updatedAt: string;
@@ -273,25 +280,62 @@ declare global {
         bargeIn: (input?: { stoppedTtsId?: string }) => Promise<VoiceIpcResult>;
         getState: () => Promise<VoiceSessionState>;
         onEvent: (callback: (event: VoiceEvent, state: VoiceSessionState) => void) => () => void;
+        openMicrophoneSettings?: () => Promise<{ ok: boolean; error?: string }>;
+        requestMicrophoneAccess?: () => Promise<{ ok: boolean; status: 'granted' | 'denied' }>;
         resolveApproval?: (input: {
           approvalId?: string;
           voiceTurnId: string;
           transcript: string;
         }) => Promise<ApprovalVoiceResolution>;
-        speak?: (input: { text: string; ttsId: string }) => Promise<{ ok: boolean; ttsId: string; error?: string }>;
+        speak?: (input: {
+          text: string;
+          ttsId: string;
+        }) => Promise<{ ok: boolean; ttsId: string; audioPath?: string; audioUrl?: string; error?: string; mimeType?: string }>;
         startSession: () => Promise<VoiceIpcResult>;
         stopSession: () => Promise<VoiceSessionState>;
         stopSpeaking?: (input?: { ttsId?: string }) => Promise<{ ok: boolean; ttsId: string; error?: string }>;
         submitPartialTranscript: (input: {
           text: string;
           confidence?: number;
-          provider?: 'native-macos' | 'fixture-transcript';
+          provider?: 'gemini' | 'openai' | 'fixture-transcript';
         }) => Promise<VoiceIpcResult>;
         submitTranscript: (input: {
           text: string;
           confidence?: number;
-          provider?: 'native-macos' | 'fixture-transcript';
+          provider?: 'gemini' | 'openai' | 'fixture-transcript';
         }) => Promise<VoiceIpcResult>;
+        transcribeAudio?: (input: {
+          audioDataUrl: string;
+          mimeType: string;
+          voiceTurnId?: string;
+        }) => Promise<
+          | { ok: true; event: VoiceEvent; provider: 'gemini' | 'openai' | 'fixture-transcript'; state: VoiceSessionState; transcript: string }
+          | {
+              ok: false;
+              error: string;
+              event: VoiceEvent;
+              provider: 'gemini' | 'openai' | 'fixture-transcript';
+              reason?: TranscriptionFailureReason;
+              retryable?: boolean;
+              state: VoiceSessionState;
+            }
+        >;
+      };
+      voiceSetup?: {
+        getStatus: () => Promise<VoiceSetupStatus>;
+        onStatusChange?: (callback: (status: VoiceSetupStatus) => void) => () => void;
+        resetAllVoiceKeys: () => Promise<VoiceSetupStatus>;
+        resetGeminiKey: () => Promise<VoiceSetupStatus>;
+        resetOpenAiKey: () => Promise<VoiceSetupStatus>;
+        saveGeminiKey: (apiKey: string) => Promise<VoiceSetupStatus>;
+        saveOpenAiKey: (apiKey: string) => Promise<VoiceSetupStatus>;
+      };
+      tavilySetup?: {
+        getStatus: () => Promise<TavilySetupStatus>;
+        onStatusChange?: (callback: (status: TavilySetupStatus) => void) => () => void;
+        resetApiKey: () => Promise<TavilySetupStatus>;
+        retry: () => Promise<TavilySetupStatus>;
+        saveApiKey: (apiKey: string) => Promise<TavilySetupStatus>;
       };
       connectors?: {
         disconnect: (id: string) => Promise<ConnectorConfig[]>;
@@ -306,19 +350,16 @@ declare global {
       setAvatarState: (avatarState: AvatarState) => Promise<Partial<BubblesAppState>>;
       setup: {
         getStatus: () => Promise<SetupStatus>;
-        installCli: () => Promise<SetupStatus>;
         onStatusChange?: (callback: (status: SetupStatus) => void) => () => void;
         resetAllMiniMax: () => Promise<SetupStatus>;
-        resetGeneralApiKey: () => Promise<SetupStatus>;
         resetTokenPlanKey: () => Promise<SetupStatus>;
         retry: () => Promise<SetupStatus>;
-        saveGeneralApiKey: (apiKey: string) => Promise<SetupStatus>;
         saveTokenPlanKey: (apiKey: string) => Promise<SetupStatus>;
       };
       tasks?: {
         cancel: (taskId: string) => Promise<boolean>;
-        getEvents: () => Promise<CliEvent[]>;
-        onEvent: (callback: (event: CliEvent) => void) => () => void;
+        getEvents: () => Promise<TaskEvent[]>;
+        onEvent: (callback: (event: TaskEvent) => void) => () => void;
         start: (userText: string) => Promise<{ taskId: string }>;
       };
       togglePanel: () => Promise<{ isOpen: boolean }>;

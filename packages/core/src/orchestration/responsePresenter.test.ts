@@ -23,15 +23,15 @@ describe('presentResponse', () => {
   it('presents blocked connector states without leaking technical payloads', () => {
     expect(
       presentResponse({
-        taskType: 'email.read',
+        taskType: 'research.web',
         status: 'blocked',
-        summary: 'Email is not connected.',
-        nextStep: 'Open Connectors and connect Gmail or Outlook.'
+        summary: 'Tavily Research is not connected.',
+        nextStep: 'Add a Tavily API key in Connectors.'
       })
     ).toMatchObject({
-      text: 'Email is not connected.\n\nNext step: Open Connectors and connect Gmail or Outlook.',
-      voiceText: 'Email is not connected.',
-      captionText: 'Email is not connected.',
+      text: 'Tavily Research is not connected.\n\nNext step: Add a Tavily API key in Connectors.',
+      voiceText: 'Tavily Research is not connected.',
+      captionText: 'Tavily Research is not connected.',
       voiceSummarized: false,
       status: 'blocked'
     });

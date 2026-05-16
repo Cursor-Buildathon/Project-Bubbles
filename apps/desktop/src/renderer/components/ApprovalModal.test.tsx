@@ -15,11 +15,11 @@ describe('ApprovalModal', () => {
           {
             id: 'approval-1',
             taskId: 'task-1',
-            agentId: 'email-calendar-assistant',
-            actionType: 'send_email',
+            agentId: 'general-assistant',
+            actionType: 'external_data_send',
             risk: 'high',
-            title: 'Send email',
-            explanation: 'Bubbles wants to send this reply.',
+            title: 'Send external data',
+            explanation: 'Bubbles wants to send this payload.',
             preview: {
               to: 'friend@example.com',
               body: 'Token [REDACTED]'
@@ -34,15 +34,15 @@ describe('ApprovalModal', () => {
       />
     );
 
-    expect(screen.getByText('Send email')).toBeInTheDocument();
+    expect(screen.getByText('Send external data')).toBeInTheDocument();
     expect(screen.getByText('high risk')).toBeInTheDocument();
     expect(screen.getByText(/friend@example.com/)).toBeInTheDocument();
     expect(screen.getByText(/REDACTED/)).toBeInTheDocument();
     expect(screen.getByText('Voice approval: say "approve", "deny", or "cancel" while voice input is listening.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve Send email' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Deny Send email' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel Send email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Send external data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deny Send external data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Send external data' }));
 
     expect(onApprove).toHaveBeenCalledWith('approval-1');
     expect(onDeny).toHaveBeenCalledWith('approval-1');

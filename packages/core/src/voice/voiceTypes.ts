@@ -50,7 +50,7 @@ export interface AgentBirthVoiceRequest {
 }
 
 export interface McpToolInvocation {
-  connectorId: 'web-search' | 'email' | 'calendar' | 'local-files';
+  connectorId: 'tavily-research';
   transport: 'command-jsonrpc' | 'http-oauth';
   method: string;
   params: Record<string, unknown>;
@@ -70,7 +70,7 @@ export interface CapabilityOutput {
 
 export type VoiceSessionMode = 'push-to-talk' | 'always-listening';
 export type VoiceSessionStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
-export type VoiceProvider = 'native-macos' | 'fixture-transcript';
+export type VoiceProvider = 'gemini' | 'openai' | 'fixture-transcript';
 
 export interface VoiceSessionState {
   enabled: boolean;
@@ -87,7 +87,7 @@ export function createInitialVoiceSessionState(input: Partial<VoiceSessionState>
   return {
     enabled: input.enabled ?? false,
     mode: input.mode ?? 'push-to-talk',
-    provider: input.provider ?? 'native-macos',
+    provider: input.provider ?? 'gemini',
     status: input.status ?? 'idle',
     activeTurnId: input.activeTurnId,
     partialText: input.partialText ?? '',

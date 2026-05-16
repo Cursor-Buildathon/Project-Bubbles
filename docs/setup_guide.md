@@ -1,56 +1,34 @@
-# Bubbles MVP Setup Guide
+# Bubbles Setup Guide
 
-## Requirements
+Last updated: 2026-05-16
 
-- macOS desktop environment.
-- Node and pnpm through Corepack.
-- MiniMax General API key for direct Bubbles features.
-- MiniMax Token Plan Key for CLI authentication.
-- Optional connector credentials for email, calendar, local files, and MCP-backed web research.
+## Required Keys
 
-## Run In Development
+- MiniMax Token Plan key: required for chat/task synthesis, research report writing, TTS, image generation, and music generation.
+- Tavily API key: required for live web research through Tavily Remote MCP.
+- Gemini STT key: primary speech-to-text provider.
+- OpenAI STT key: optional fallback for speech-to-text.
 
-```bash
-corepack pnpm install
-corepack pnpm --filter @bubbles/desktop dev
-```
+All keys are stored in macOS Keychain through the app setup screens. Do not place keys in repo files, logs, screenshots, memory, or timeline metadata.
 
-## MiniMax Setup
+## MiniMax
 
-1. Open the assistant workspace.
-2. Enter the MiniMax General API key when prompted.
-3. Enter the MiniMax Token Plan Key when prompted.
-4. Approve the app-local MiniMax CLI install if requested.
-5. Use **Recheck CLI** until the setup status reports ready.
+Use the MiniMax setup card to save a Token Plan key. Bubbles verifies it through direct MiniMax HTTPS APIs and uses `MiniMax-M2.7` by default for text/JSON generation.
 
-The General API key is never used for CLI auth. The Token Plan Key is never used for direct API verification.
+The old MiniMax CLI bridge and General API setup paths have been removed.
 
-The integrated mock test verified the already-ready path, live CLI task execution, graceful cancellation, and restart recovery. After a successful setup, the chat composer should stay enabled across restart as long as the stored keys and app-local CLI remain valid.
+## Tavily Research
 
-## Connectors
+Use the Tavily setup card to save a Tavily API key, then enable `Tavily Research` in Connectors and run a health check. The app calls Tavily Remote MCP directly at `https://mcp.tavily.com/mcp/`.
 
-- Web research: configure an MCP/search provider, or use fixture results for demo fallback.
-- Email: connect Gmail or Outlook before reading or replying to email.
-- Calendar: connect Google Calendar or Outlook Calendar before reading or updating events.
-- Local files: approve specific folders before file reads.
+Research trigger phrases include `do me a research`, `do research`, `search me`, `search for`, `look up`, `investigate`, and `find sources`.
 
-Fixture mode is allowed for the buildathon demo, but the workspace labels fixture connectors explicitly.
+Research output is shown in chat as a comprehensive cited report. Voice playback only says: `Your research output is ready. I put the full report in chat.` Bubbles reads the full report aloud only when the user explicitly asks.
 
-The mock test verified fixture mode persistence for Web Search, Local Files, Email, and Calendar. Fixture mode is still a demo/development path; do not describe fixture connector output as a real account or live external service.
+## Voice
 
-## Troubleshooting
+Voice input uses Gemini STT first, with optional OpenAI fallback through OpenAI audio translations. Both providers are instructed to return English text only. Voice playback uses English MiniMax TTS with English language boost. The wake phrase is `Hi Bubbles`.
 
-- MiniMax API unavailable: recheck the General API key and network.
-- CLI unavailable: approve install or install `mmx` manually, then use **Recheck CLI**.
-- Token Plan auth fails: confirm the key is a Token Plan Key, not the General API key.
-- CLI task will not cancel: verify `packages/core/src/cli/cliBridge.ts` still emits `task.cancelled` for early cancellation before the child process is fully registered.
-- MCP connector unavailable: keep the demo in fixture mode or configure the provider command.
-- Email/calendar auth missing: use fixture mode for the demo or connect the real account.
-- Voice unavailable: keep voice off; chat remains the primary demo path.
+## Removed Connector Paths
 
-## Known Limitations
-
-- macOS packaging is configured for unsigned local distribution unless signing credentials are added later.
-- Fixture connector data is for demo continuity only and must remain visibly labeled.
-- Logs export is intended to be redacted; raw secrets must not be shown in chat, memory, timeline, task drawer, approval previews, or persisted SQLite-backed stores.
-- Durable memory and timeline now sanitize token-like strings both when writing new rows and when reopening existing rows.
+The app no longer ships Web Search, Local Files, Email, Calendar, Google Workspace, generic MCP command launch, or MCP fixture connectors. Keep MiniMax media fixture artifacts for CI/demo fallback only.

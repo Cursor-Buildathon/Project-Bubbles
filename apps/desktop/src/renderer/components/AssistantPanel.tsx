@@ -4,10 +4,10 @@ import {
   type AgentBirthDraft,
   type AgentProfile,
   type ApprovalRequest,
-  type CliEvent,
   type ConnectorConfig,
   type MemoryItem,
   type SetupStatus,
+  type TaskEvent,
   type TimelineEvent,
   type VoiceSessionState
 } from '@bubbles/core';
@@ -50,13 +50,16 @@ interface AssistantPanelProps {
   onSetupStatusChange: (status: SetupStatus) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   setupStatus: SetupStatus | null;
-  taskEvents: CliEvent[];
+  taskEvents: TaskEvent[];
   timelineEvents: TimelineEvent[];
   voiceSession: {
     voiceState: VoiceSessionState;
+    wakePhrase: string;
+    wakePhraseEnabled: boolean;
     startListening: () => Promise<void>;
     stopListening: () => Promise<void>;
     bargeIn: () => Promise<void>;
+    toggleWakePhrase: () => Promise<void>;
   };
 }
 
@@ -184,7 +187,10 @@ export function AssistantPanel({
             onBargeIn={() => void voiceSession.bargeIn()}
             onStartListening={() => void voiceSession.startListening()}
             onStopListening={() => void voiceSession.stopListening()}
+            onToggleWakePhrase={() => void voiceSession.toggleWakePhrase()}
             voiceState={voiceSession.voiceState}
+            wakePhrase={voiceSession.wakePhrase}
+            wakePhraseEnabled={voiceSession.wakePhraseEnabled}
           />
           <TaskDrawer activeTaskId={activeTaskId} events={taskEvents} onCancelTask={onCancelTask} />
           <section className="approval-panel" aria-label="Approvals" data-testid="approval-panel">

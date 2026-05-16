@@ -1,37 +1,42 @@
-import { buildTaskPacket, type BuildTaskPacketOptions } from '../cli/taskPacketBuilder.js';
-import { type CliBridge } from '../cli/cliBridge.js';
-import { type AvatarState, type CliEvent } from '../shared/types.js';
+import { buildTaskPacket, type BuildTaskPacketOptions } from '../tasks/taskPacketBuilder.js';
+import { type AvatarState, type TaskEvent } from '../shared/types.js';
+
+export interface TaskRunner {
+  cancel: (taskId: string) => boolean;
+  getEvents?: () => TaskEvent[];
+  start: (packet: Awaited<ReturnType<typeof buildTaskPacket>>, onEvent: (event: TaskEvent) => void) => Promise<TaskEvent>;
+}
 
 export interface TaskOrchestrator {
   cancelTask: (taskId: string) => boolean;
-  getEvents: () => CliEvent[];
-  startTask: (options: BuildTaskPacketOptions, onEvent?: (event: CliEvent, avatarState: AvatarState) => void) => Promise<CliEvent>;
+  getEvents: () => TaskEvent[];
+  startTask: (options: BuildTaskPacketOptions, onEvent?: (event: TaskEvent, avatarState: AvatarState) => void) => Promise<TaskEvent>;
 }
 
-export function createTaskOrchestrator(bridge: CliBridge): TaskOrchestrator {
-  const events: CliEvent[] = [];
+export function createTaskOrchestrator(runner: TaskRunner): TaskOrchestrator {
+  const events: TaskEvent[] = [];
 
   return {
     cancelTask(taskId) {
-      return bridge.cancel(taskId);
+      return runner.cancel(taskId);
     },
 
     getEvents() {
-      return [...events];
+      return runner.getEvents?.() ?? [...events];
     },
 
     async startTask(options, onEvent) {
       const packet = await buildTaskPacket(options);
 
-      return bridge.start(packet, (event) => {
+      return runner.start(packet, (event) => {
         events.push(event);
-        onEvent?.(event, mapCliEventToAvatarState(event));
+        onEvent?.(event, mapTaskEventToAvatarState(event));
       });
     }
   };
 }
 
-export function mapCliEventToAvatarState(event: Pick<CliEvent, 'type'> & { payload?: Record<string, unknown> }): AvatarState {
+export function mapTaskEventToAvatarState(event: Pick<TaskEvent, 'type'> & { payload?: Record<string, unknown> }): AvatarState {
   if (event.type === 'task.status' && event.payload?.status === 'missing_info') {
     return 'confused';
   }

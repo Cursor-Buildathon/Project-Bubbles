@@ -22,7 +22,6 @@ export function WorkspaceHeader({
   setupStatus
 }: WorkspaceHeaderProps) {
   const liveCount = connectors.filter((connector) => connector.enabled && connector.mode === 'real').length;
-  const fixtureCount = connectors.filter((connector) => connector.enabled && connector.mode === 'fixture').length;
 
   return (
     <header
@@ -42,7 +41,7 @@ export function WorkspaceHeader({
           {setupStatus?.state === 'ready' ? 'MiniMax ready' : 'MiniMax setup'}
         </span>
         <span className="status-pill">{liveCount} real</span>
-        <span className={fixtureCount ? 'status-pill status-pill--fixture' : 'status-pill'}>{fixtureCount} fixture</span>
+        <span className="status-pill">Tavily MCP</span>
       </div>
       <button className="icon-button" type="button" aria-label="Close assistant panel" onClick={onClose}>
         <X size={18} aria-hidden="true" />

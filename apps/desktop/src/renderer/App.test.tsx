@@ -29,16 +29,16 @@ describe('Bubbles floating avatar shell', () => {
           avatarState: 'idle',
           connectors: [
             {
-              id: 'email',
-              name: 'Email',
-              type: 'email',
+              id: 'tavily-research',
+              name: 'Tavily Research',
+              type: 'tavily_research',
               enabled: true,
-              mode: 'fixture',
+              mode: 'real',
               authStatus: 'ready',
               healthStatus: 'healthy',
-              allowedAgents: ['email-calendar-assistant'],
-              requiredApproval: 'preview_sensitive_actions',
-              launchConfig: {},
+              allowedAgents: ['research-agent'],
+              requiredApproval: 'none',
+              launchConfig: { maxResults: 8, remoteUrl: 'https://mcp.tavily.com/mcp/', searchDepth: 'advanced' },
               updatedAt: '2026-05-14T10:00:00.000Z'
             }
           ],
@@ -76,8 +76,7 @@ describe('Bubbles floating avatar shell', () => {
       render(<App />);
 
       await waitFor(() => {
-        expect(screen.queryByText('Recheck CLI')).not.toBeNull();
-        expect(screen.queryByText('Reset General API key')).not.toBeNull();
+        expect(screen.queryByText('Recheck MiniMax')).not.toBeNull();
         expect(screen.queryByText('Reset Token Plan key')).not.toBeNull();
         expect(screen.queryByText('Reset all')).not.toBeNull();
         expect(screen.queryByText('Export redacted logs')).not.toBeNull();
@@ -88,7 +87,7 @@ describe('Bubbles floating avatar shell', () => {
     }
   });
 
-  it('labels fixture connectors and degraded MiniMax state in the workspace status', async () => {
+  it('labels Tavily connector issues and degraded MiniMax state in the workspace status', async () => {
     const previousBubbles = window.bubbles;
 
     try {
@@ -98,17 +97,17 @@ describe('Bubbles floating avatar shell', () => {
           avatarState: 'idle',
           connectors: [
             {
-              id: 'calendar',
-              name: 'Calendar',
-              type: 'calendar',
+              id: 'tavily-research',
+              name: 'Tavily Research',
+              type: 'tavily_research',
               enabled: false,
-              mode: 'fixture',
+              mode: 'real',
               authStatus: 'needs_auth',
               healthStatus: 'unhealthy',
-              allowedAgents: [],
-              requiredApproval: 'preview_sensitive_actions',
-              launchConfig: {},
-              lastError: 'Calendar auth is missing',
+              allowedAgents: ['research-agent'],
+              requiredApproval: 'none',
+              launchConfig: { maxResults: 8, remoteUrl: 'https://mcp.tavily.com/mcp/', searchDepth: 'advanced' },
+              lastError: 'Tavily key is missing',
               updatedAt: '2026-05-14T10:00:00.000Z'
             }
           ],
@@ -120,7 +119,7 @@ describe('Bubbles floating avatar shell', () => {
           createSetupStatus({
             state: 'setup_error',
             mode: 'not_configured',
-            generalApi: { verified: false, error: 'Network unavailable' }
+            tokenPlan: { present: true, verified: false, error: 'Network unavailable' }
           })
         )
       });
@@ -128,9 +127,9 @@ describe('Bubbles floating avatar shell', () => {
       render(<App />);
 
       expect(await screen.findByTestId('integration-status-bar')).toHaveTextContent('MiniMax needs attention');
-      expect(await screen.findAllByText(/Calendar auth is missing/)).not.toHaveLength(0);
-      expect(screen.getAllByText(/fixture/)).not.toHaveLength(0);
-      expect(screen.getByText(/Use fixture mode for the demo or connect Google\/Outlook Calendar/)).toBeInTheDocument();
+      expect(await screen.findAllByText(/Tavily key is missing/)).not.toHaveLength(0);
+      expect(screen.queryByText(/fixture/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Add a Tavily API key, enable Tavily Research, and recheck the connector/)).toBeInTheDocument();
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;
@@ -320,13 +319,13 @@ describe('Bubbles floating avatar shell', () => {
           avatarState: 'idle',
           messages: []
         }),
-        setup: createSetupApi(createSetupStatus({ state: 'needs_general_api_key' })),
+        setup: createSetupApi(createSetupStatus({ state: 'needs_token_plan_key' })),
         togglePanel: vi.fn().mockResolvedValue({ isOpen: true })
       };
 
       render(<App />);
 
-      expect(await screen.findByLabelText('MiniMax General API key')).toBeInTheDocument();
+      expect(await screen.findByLabelText('MiniMax Token Plan key')).toBeInTheDocument();
       expect(screen.getByLabelText('Message Bubbles')).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     } finally {
@@ -391,15 +390,10 @@ describe('Bubbles floating avatar shell', () => {
           createSetupStatus({
             state: 'setup_error',
             mode: 'not_configured',
-            generalApi: { verified: true },
-            tokenPlan: { present: true, verified: false },
-            cli: {
-              installed: true,
-              authenticated: true,
+            tokenPlan: {
+              present: true,
               verified: false,
-              installCommandPreview: 'npm install -g mmx-cli',
-              error:
-                'MiniMax CLI cannot reach the network right now. Check your connection or proxy settings, then use Recheck CLI.'
+              error: 'MiniMax API cannot reach the network right now. Check your connection or proxy settings, then recheck MiniMax.'
             }
           })
         );
@@ -407,14 +401,14 @@ describe('Bubbles floating avatar shell', () => {
 
       expect(screen.getByText('Setup needs attention')).toBeInTheDocument();
       expect(screen.queryByText('MiniMax ready')).not.toBeInTheDocument();
-      expect(screen.getByText(/MiniMax CLI cannot reach the network right now/)).toBeInTheDocument();
+      expect(screen.getByText(/MiniMax API cannot reach the network right now/)).toBeInTheDocument();
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;
     }
   });
 
-  it('shows the CLI result text in chat when a task succeeds', async () => {
+  it('shows the task result text in chat when a task succeeds', async () => {
     const previousBubbles = window.bubbles;
     let stateCallback: ((state: NonNullable<typeof window.bubbles> extends { onStateChange: (callback: infer C) => unknown } ? C extends (state: infer S) => unknown ? S : never : never) => void) | undefined;
 
@@ -612,7 +606,7 @@ describe('Bubbles floating avatar shell', () => {
         decision: 'approved',
         transcript: 'approve'
       },
-      message: 'Send email was approved.',
+      message: 'External data send was approved.',
       fallbackRequired: false,
       attemptCount: 0
     });
@@ -625,9 +619,9 @@ describe('Bubbles floating avatar shell', () => {
             id: 'approval-1',
             taskId: 'task-1',
             agentId: 'general-assistant',
-            actionType: 'send_email',
+            actionType: 'external_data_send',
             risk: 'high',
-            title: 'Send email',
+            title: 'Send external data',
             explanation: 'Review before sending.',
             preview: { to: 'alex@example.com' },
             status: 'pending',
@@ -643,9 +637,9 @@ describe('Bubbles floating avatar shell', () => {
         activeTaskId: null,
         approvals: [],
         avatarState: 'idle',
-        messages: [{ id: 1, author: 'bubbles', text: 'Send email was approved.' }],
+        messages: [{ id: 1, author: 'bubbles', text: 'External data send was approved.' }],
         taskEvents: [],
-        voiceState: createVoiceState({ status: 'idle', captionText: 'Send email was approved.' })
+        voiceState: createVoiceState({ status: 'idle', captionText: 'External data send was approved.' })
       });
 
     try {
@@ -674,7 +668,7 @@ describe('Bubbles floating avatar shell', () => {
 
       render(<App />);
 
-      expect(await screen.findByText('Send email')).toBeInTheDocument();
+      expect(await screen.findByText('Send external data')).toBeInTheDocument();
 
       await act(async () => {
         voiceCallback?.(
@@ -691,7 +685,7 @@ describe('Bubbles floating avatar shell', () => {
         })
       );
       expect(sendMessage).not.toHaveBeenCalled();
-      expect(screen.getByRole('status', { name: 'Voice caption' })).toHaveTextContent('Send email was approved.');
+      expect(screen.getByRole('status', { name: 'Voice caption' })).toHaveTextContent('External data send was approved.');
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;
@@ -737,7 +731,7 @@ describe('Bubbles floating avatar shell', () => {
           bargeIn: vi.fn(),
           getState: vi.fn().mockResolvedValue(createVoiceState()),
           onEvent: vi.fn(() => () => undefined),
-          speak: vi.fn().mockResolvedValue(undefined),
+          speak: vi.fn().mockResolvedValue({ ok: true, text: 'Approval needed: Send external data.', ttsId: 'tts-current' }),
           startSession: vi.fn(),
           stopSession: vi.fn(),
           submitPartialTranscript: vi.fn(),
@@ -747,12 +741,12 @@ describe('Bubbles floating avatar shell', () => {
 
       render(<App />);
 
-      expect(await screen.findByText('Send email')).toBeInTheDocument();
+      expect(await screen.findByText('Send external data')).toBeInTheDocument();
       expect(await screen.findByRole('status', { name: 'Voice caption' })).toHaveTextContent(
-        'Approval needed: Send email.'
+        'Approval needed: Send external data.'
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'Approve Send email' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Approve Send external data' }));
 
       await waitFor(() => expect(approve).toHaveBeenCalledWith('approval-1'));
       await waitFor(() => expect(screen.queryByRole('status', { name: 'Voice caption' })).not.toBeInTheDocument());
@@ -831,12 +825,9 @@ function createPointerTestEvent(type: string, screenX: number, screenY: number) 
 function createSetupApi(status: SetupStatus): NonNullable<typeof window.bubbles>['setup'] {
   return {
     getStatus: vi.fn().mockResolvedValue(status),
-    installCli: vi.fn().mockResolvedValue(status),
     resetAllMiniMax: vi.fn().mockResolvedValue(status),
-    resetGeneralApiKey: vi.fn().mockResolvedValue(status),
     resetTokenPlanKey: vi.fn().mockResolvedValue(status),
     retry: vi.fn().mockResolvedValue(status),
-    saveGeneralApiKey: vi.fn().mockResolvedValue(status),
     saveTokenPlanKey: vi.fn().mockResolvedValue(status)
   };
 }
@@ -876,9 +867,9 @@ function createApprovalRequest(overrides: Partial<ApprovalRequest> = {}): Approv
     id: 'approval-1',
     taskId: 'task-1',
     agentId: 'general-assistant',
-    actionType: 'send_email',
+    actionType: 'external_data_send',
     risk: 'high',
-    title: 'Send email',
+    title: 'Send external data',
     explanation: 'Review before sending.',
     preview: { to: 'alex@example.com' },
     status: 'pending',
@@ -891,7 +882,7 @@ function createVoiceState(overrides: Partial<VoiceSessionState> = {}): VoiceSess
   return {
     enabled: true,
     mode: 'push-to-talk',
-    provider: 'native-macos',
+    provider: 'gemini',
     status: 'idle',
     activeTurnId: undefined,
     partialText: '',
@@ -903,16 +894,9 @@ function createVoiceState(overrides: Partial<VoiceSessionState> = {}): VoiceSess
 
 function createSetupStatus(overrides: Partial<SetupStatus> = {}): SetupStatus {
   return {
-    state: 'needs_general_api_key',
+    state: 'needs_token_plan_key',
     mode: 'not_configured',
-    generalApi: { verified: false },
     tokenPlan: { present: false, verified: false },
-    cli: {
-      installed: false,
-      authenticated: false,
-      verified: false,
-      installCommandPreview: 'npm install -g mmx-cli'
-    },
     updatedAt: '2026-05-14T10:00:00.000Z',
     ...overrides
   };

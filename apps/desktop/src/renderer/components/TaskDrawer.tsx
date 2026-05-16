@@ -1,9 +1,9 @@
 import { Ban, Clock3 } from 'lucide-react';
-import { type CliEvent } from '@bubbles/core';
+import { type TaskEvent } from '@bubbles/core';
 
 interface TaskDrawerProps {
   activeTaskId: string | null;
-  events: CliEvent[];
+  events: TaskEvent[];
   onCancelTask: (taskId: string) => void;
 }
 
@@ -31,13 +31,13 @@ export function TaskDrawer({ activeTaskId, events, onCancelTask }: TaskDrawerPro
           ))}
         </ul>
       ) : (
-        <p>No active CLI task yet.</p>
+        <p>No active MiniMax task yet.</p>
       )}
     </section>
   );
 }
 
-function formatEventPayload(event: CliEvent) {
+function formatEventPayload(event: TaskEvent) {
   const text =
     stringPayload(event.payload.errorMessage) ??
     stringPayload(event.payload.text) ??

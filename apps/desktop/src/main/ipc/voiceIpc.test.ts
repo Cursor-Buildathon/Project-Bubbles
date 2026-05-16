@@ -81,7 +81,7 @@ describe('createVoiceIpcController', () => {
       event: {
         type: 'voice.error',
         error: 'Voice is disabled.',
-        provider: 'native-macos'
+        provider: 'gemini'
       }
     });
   });
@@ -106,14 +106,81 @@ describe('createVoiceIpcController', () => {
     expect(stopSpeaking).toHaveBeenCalledWith({ ttsId: 'tts-1' });
   });
 
-  it('delegates spoken playback to the native speech adapter', async () => {
-    const speakText = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-1' });
+  it('delegates spoken playback to the MiniMax speech adapter', async () => {
+    const speakText = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-1', audioUrl: 'bubbles-artifact://local/voice.mp3' });
     const controller = createVoiceIpcController({ enabled: true, publish: vi.fn(), speakText });
 
     await expect(controller.speak({ text: 'Short reply.', ttsId: 'tts-1' })).resolves.toEqual({
+      audioUrl: 'bubbles-artifact://local/voice.mp3',
       ok: true,
       ttsId: 'tts-1'
     });
     expect(speakText).toHaveBeenCalledWith({ text: 'Short reply.', ttsId: 'tts-1' });
+  });
+
+  it('transcribes recorded audio and emits a final voice event', async () => {
+    const publish = vi.fn();
+    const transcribeAudio = vi.fn().mockResolvedValue({
+      ok: true,
+      provider: 'gemini',
+      transcript: 'Help me plan the day.'
+    });
+    const controller = createVoiceIpcController({ enabled: true, publish, transcribeAudio });
+    const started = controller.startSession();
+
+    const result = await controller.transcribeAudio({
+      audioDataUrl: 'data:audio/wav;base64,d2F2',
+      mimeType: 'audio/wav',
+      voiceTurnId: started.state.activeTurnId
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      provider: 'gemini',
+      transcript: 'Help me plan the day.',
+      event: {
+        type: 'voice.final',
+        text: 'Help me plan the day.'
+      }
+    });
+    expect(result.state).toMatchObject({
+      captionText: 'Help me plan the day.',
+      status: 'processing'
+    });
+  });
+
+  it('preserves terminal transcription failure metadata', async () => {
+    const publish = vi.fn();
+    const transcribeAudio = vi.fn().mockResolvedValue({
+      ok: false,
+      provider: 'gemini',
+      error: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.',
+      reason: 'quota',
+      retryable: false
+    });
+    const controller = createVoiceIpcController({ enabled: true, publish, transcribeAudio });
+    const started = controller.startSession();
+
+    const result = await controller.transcribeAudio({
+      audioDataUrl: 'data:audio/wav;base64,d2F2',
+      mimeType: 'audio/wav',
+      voiceTurnId: started.state.activeTurnId
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      provider: 'gemini',
+      reason: 'quota',
+      retryable: false,
+      event: {
+        type: 'voice.error',
+        error: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.'
+      },
+      state: {
+        status: 'error',
+        lastError: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.',
+        captionText: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.'
+      }
+    });
   });
 });

@@ -80,8 +80,8 @@ export function WorkspaceStatusRail({
 function DegradedStateList({ connectors, setupStatus }: { connectors: ConnectorConfig[]; setupStatus: SetupStatus | null }) {
   const setupMessage =
     setupStatus?.state === 'ready'
-      ? 'MiniMax API and CLI are ready for the live demo.'
-      : 'MiniMax is not fully verified. Open setup, recheck CLI, or use fixture-backed demo steps.';
+      ? 'MiniMax API is ready for the live demo.'
+      : 'MiniMax is not fully verified. Open setup or recheck the Token Plan key.';
   const connectorMessages = connectors
     .filter((connector) => connector.authStatus !== 'ready' || connector.healthStatus === 'unhealthy')
     .map((connector) => connectorFallbackText(connector));
@@ -97,17 +97,5 @@ function DegradedStateList({ connectors, setupStatus }: { connectors: ConnectorC
 function connectorFallbackText(connector: ConnectorConfig) {
   const prefix = connector.lastError ? `${connector.lastError}. ` : '';
 
-  if (connector.type === 'calendar') {
-    return `${prefix}Use fixture mode for the demo or connect Google/Outlook Calendar.`;
-  }
-
-  if (connector.type === 'email') {
-    return `${prefix}Use fixture mode for the demo or connect Gmail/Outlook before sending email.`;
-  }
-
-  if (connector.type === 'local_files') {
-    return `${prefix}Choose approved folders before Bubbles reads local files.`;
-  }
-
-  return `${prefix}Configure an MCP provider or use fixture research results for the demo.`;
+  return `${prefix}Add a Tavily API key, enable Tavily Research, and recheck the connector.`;
 }

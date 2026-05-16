@@ -4,7 +4,7 @@ import { type ConnectorConfig } from '@bubbles/core';
 import { ConnectorSettings } from './ConnectorSettings';
 
 describe('ConnectorSettings', () => {
-  it('shows connector status and exposes health/disconnect controls', () => {
+  it('shows Tavily connector status and exposes health/disconnect controls', () => {
     const onDisconnect = vi.fn();
     const onHealthCheck = vi.fn();
     const onUpdate = vi.fn();
@@ -13,22 +13,9 @@ describe('ConnectorSettings', () => {
       <ConnectorSettings
         connectors={[
           createConnector({
-            id: 'web-search',
-            name: 'Web Search',
-            type: 'web_search',
             enabled: true,
             authStatus: 'ready',
-            healthStatus: 'healthy',
-            allowedAgents: ['research-agent']
-          }),
-          createConnector({
-            id: 'email',
-            name: 'Email',
-            type: 'email',
-            enabled: false,
-            authStatus: 'not_configured',
-            healthStatus: 'unknown',
-            lastError: 'Connect Gmail or Outlook first.'
+            healthStatus: 'healthy'
           })
         ]}
         onDisconnect={onDisconnect}
@@ -37,103 +24,66 @@ describe('ConnectorSettings', () => {
       />
     );
 
-    expect(screen.getByText('Web Search')).toBeInTheDocument();
+    expect(screen.getByText('Tavily Research')).toBeInTheDocument();
+    expect(screen.getByText('Tavily live web research is ready.')).toBeInTheDocument();
     expect(screen.getByText('ready')).toBeInTheDocument();
     expect(screen.getByText('healthy')).toBeInTheDocument();
     expect(screen.getByText('research-agent')).toBeInTheDocument();
-    expect(screen.getByText('Connect Gmail or Outlook first.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check Web Search' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Web Search' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enable Email fixture mode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check Tavily Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Tavily Research' }));
 
-    expect(onHealthCheck).toHaveBeenCalledWith('web-search');
-    expect(onDisconnect).toHaveBeenCalledWith('web-search');
-    expect(onUpdate).toHaveBeenCalledWith('email', {
-      allowedAgents: ['email-calendar-assistant'],
-      enabled: true,
-      mode: 'fixture',
-      authStatus: 'ready',
-      healthStatus: 'healthy'
-    });
+    expect(onHealthCheck).toHaveBeenCalledWith('tavily-research');
+    expect(onDisconnect).toHaveBeenCalledWith('tavily-research');
   });
 
-  it('offers real Google Workspace setup actions with current scope summaries', () => {
+  it('enables Tavily without exposing old MCP fixture or Google Workspace setup actions', () => {
     const onDisconnect = vi.fn();
     const onHealthCheck = vi.fn();
     const onUpdate = vi.fn();
 
     render(
       <ConnectorSettings
-        connectors={[
-          createConnector({ id: 'email', name: 'Email', type: 'email' }),
-          createConnector({ id: 'calendar', name: 'Calendar', type: 'calendar' })
-        ]}
+        connectors={[createConnector()]}
         onDisconnect={onDisconnect}
         onHealthCheck={onHealthCheck}
         onUpdate={onUpdate}
       />
     );
 
-    expect(screen.getByText('Gmail needs gmail.readonly, gmail.compose, and gmail.send after explicit approval.')).toBeInTheDocument();
-    expect(screen.getByText('Calendar uses calendar.events.owned for MVP writes.')).toBeInTheDocument();
+    expect(screen.queryByText(/Gmail|Calendar|fixture/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Tavily Research' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Gmail' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Set up Calendar' }));
-
-    expect(onUpdate).toHaveBeenCalledWith('email', {
-      allowedAgents: ['email-calendar-assistant'],
-      authStatus: 'needs_auth',
+    expect(onUpdate).toHaveBeenCalledWith('tavily-research', {
+      allowedAgents: ['research-agent'],
       enabled: true,
-      healthStatus: 'unhealthy',
       launchConfig: {
-        httpUrl: 'https://gmailmcp.googleapis.com/mcp/v1',
-        oauth: {
-          provider: 'google-workspace',
-          scopes: [
-            'https://www.googleapis.com/auth/gmail.readonly',
-            'https://www.googleapis.com/auth/gmail.compose',
-            'https://www.googleapis.com/auth/gmail.send'
-          ]
-        }
+        maxResults: 8,
+        remoteUrl: 'https://mcp.tavily.com/mcp/',
+        searchDepth: 'advanced'
       },
       mode: 'real',
-      requiredApproval: 'preview_sensitive_actions'
-    });
-    expect(onUpdate).toHaveBeenCalledWith('calendar', {
-      allowedAgents: ['email-calendar-assistant'],
-      authStatus: 'needs_auth',
-      enabled: true,
-      healthStatus: 'unhealthy',
-      launchConfig: {
-        httpUrl: 'https://calendarmcp.googleapis.com/mcp/v1',
-        oauth: {
-          provider: 'google-workspace',
-          scopes: [
-            'https://www.googleapis.com/auth/calendar.events.owned',
-            'https://www.googleapis.com/auth/calendar.events.readonly',
-            'https://www.googleapis.com/auth/calendar.events.freebusy'
-          ]
-        }
-      },
-      mode: 'real',
-      requiredApproval: 'preview_sensitive_actions'
+      requiredApproval: 'none'
     });
   });
 });
 
-function createConnector(overrides: Partial<ConnectorConfig>): ConnectorConfig {
+function createConnector(overrides: Partial<ConnectorConfig> = {}): ConnectorConfig {
   return {
-    id: 'connector',
-    name: 'Connector',
-    type: 'web_search',
+    id: 'tavily-research',
+    name: 'Tavily Research',
+    type: 'tavily_research',
     enabled: false,
     mode: 'real',
     authStatus: 'not_configured',
     healthStatus: 'unknown',
-    allowedAgents: [],
-    requiredApproval: 'preview_sensitive_actions',
-    launchConfig: {},
+    allowedAgents: ['research-agent'],
+    requiredApproval: 'none',
+    launchConfig: {
+      maxResults: 8,
+      remoteUrl: 'https://mcp.tavily.com/mcp/',
+      searchDepth: 'advanced'
+    },
     updatedAt: '2026-05-14T00:00:00.000Z',
     ...overrides
   };

@@ -3,9 +3,9 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
-  createMiniMaxCliManager,
   createMiniMaxSetupService,
   redactSecrets,
+  verifyMiniMaxApiKey,
   type CommandResult,
   type MiniMaxSetupService,
   type SecureKeyStore,
@@ -17,26 +17,16 @@ interface RegisterSetupIpcOptions {
   keyStore: Pick<
     SecureKeyStore,
     | 'deleteAllMiniMaxKeys'
-    | 'deleteGeneralApiKey'
     | 'deleteTokenPlanKey'
-    | 'getGeneralApiKey'
     | 'getTokenPlanKey'
-    | 'setGeneralApiKey'
     | 'setTokenPlanKey'
   >;
   onStatusChange?: (status: SetupStatus) => void;
 }
 
 export function registerSetupIpc({ keyStore, onStatusChange }: RegisterSetupIpcOptions): MiniMaxSetupService {
-  const runCommand = createProcessRunner();
-  const minimaxCliPrefix = join(app.getPath('userData'), 'tools', 'mmx-cli');
   const service = createMiniMaxSetupService({
-    apiClient: (apiKey) => import('@bubbles/core').then(({ verifyMiniMaxApiKey }) => verifyMiniMaxApiKey(apiKey)),
-    cliManager: createMiniMaxCliManager({
-      runCommand,
-      localInstallPrefix: minimaxCliPrefix,
-      useGlobalFallback: false
-    }),
+    apiClient: (apiKey) => verifyMiniMaxApiKey(apiKey),
     keyStore,
     statusStore: createJsonSetupStatusStore(join(app.getPath('userData'), 'minimax-setup-status.json'))
   });
@@ -48,15 +38,10 @@ export function registerSetupIpc({ keyStore, onStatusChange }: RegisterSetupIpcO
   }
 
   ipcMain.handle('setup:get-status', () => service.getStatus());
-  ipcMain.handle('setup:save-general-api-key', async (_event, apiKey: string) =>
-    updateStatus(() => service.saveGeneralApiKey(apiKey))
-  );
   ipcMain.handle('setup:save-token-plan-key', async (_event, apiKey: string) =>
     updateStatus(() => service.saveTokenPlanKey(apiKey))
   );
-  ipcMain.handle('setup:install-cli', () => updateStatus(() => service.installCli()));
   ipcMain.handle('setup:retry', () => updateStatus(() => service.retry()));
-  ipcMain.handle('setup:reset-general-api-key', () => updateStatus(() => service.resetGeneralApiKey()));
   ipcMain.handle('setup:reset-token-plan-key', () => updateStatus(() => service.resetTokenPlanKey()));
   ipcMain.handle('setup:reset-all-minimax', () => updateStatus(() => service.resetAllMiniMax()));
 

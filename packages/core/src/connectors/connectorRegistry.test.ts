@@ -4,35 +4,42 @@ import { describe, expect, it } from 'vitest';
 import { createConnectorRegistry } from './connectorRegistry.js';
 
 describe('createConnectorRegistry', () => {
-  it('creates default connectors and persists health/config updates', async () => {
+  it('creates the Tavily connector and persists health/config updates', async () => {
     const databasePath = join(tmpdir(), `bubbles-connectors-${Date.now()}.sqlite`);
     const registry = await createConnectorRegistry({ databasePath, now: () => '2026-05-14T05:00:00.000Z' });
 
     await expect(registry.list()).resolves.toMatchObject([
-      { id: 'web-search', type: 'web_search', authStatus: 'not_configured', healthStatus: 'unknown' },
-      { id: 'local-files', type: 'local_files', authStatus: 'not_configured', healthStatus: 'unknown' },
-      { id: 'email', type: 'email', authStatus: 'not_configured', healthStatus: 'unknown' },
-      { id: 'calendar', type: 'calendar', authStatus: 'not_configured', healthStatus: 'unknown' }
+      {
+        authStatus: 'not_configured',
+        healthStatus: 'unknown',
+        id: 'tavily-research',
+        mode: 'real',
+        type: 'tavily_research'
+      }
     ]);
 
-    await registry.update('web-search', {
+    await registry.update('tavily-research', {
       enabled: true,
-      mode: 'real',
       authStatus: 'ready',
-      allowedAgents: ['research-agent'],
-      launchConfig: { command: 'mcp-search', args: ['--api-key', 'sk-cp-secret'] }
+      launchConfig: {
+        maxResults: 5,
+        remoteUrl: 'https://mcp.tavily.com/mcp/',
+        searchDepth: 'advanced'
+      }
     });
-    await registry.setHealth('web-search', { healthStatus: 'healthy' });
+    await registry.setHealth('tavily-research', { healthStatus: 'healthy' });
 
     const reloaded = await createConnectorRegistry({ databasePath });
 
-    await expect(reloaded.get('web-search')).resolves.toMatchObject({
-      enabled: true,
-      mode: 'real',
+    await expect(reloaded.get('tavily-research')).resolves.toMatchObject({
       authStatus: 'ready',
+      enabled: true,
       healthStatus: 'healthy',
-      allowedAgents: ['research-agent'],
-      launchConfig: { command: 'mcp-search', args: ['--api-key', '[REDACTED]'] }
+      launchConfig: {
+        maxResults: 5,
+        remoteUrl: 'https://mcp.tavily.com/mcp/',
+        searchDepth: 'advanced'
+      }
     });
   });
 });

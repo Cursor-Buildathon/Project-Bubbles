@@ -2,7 +2,19 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { redactSecrets } from '../security/redactSecrets.js';
 import { type ArtifactMetadata } from '../shared/types.js';
-import { type CommandRunner } from '../shared/commandRunner.js';
+import { createMiniMaxApiError } from './minimaxApiClient.js';
+
+const minimaxImageEndpoint = 'https://api.minimax.io/v1/image_generation';
+const minimaxMusicEndpoint = 'https://api.minimax.io/v1/music_generation';
+
+interface ResponseLike {
+  json: () => Promise<unknown>;
+  ok: boolean;
+  status: number;
+  text?: () => Promise<string>;
+}
+
+type FetchLike = (input: string, init: RequestInit) => Promise<ResponseLike>;
 
 export type CreativeKind = 'voice' | 'image' | 'vision' | 'music';
 
@@ -35,10 +47,14 @@ export interface MiniMaxCreativeRequest {
 }
 
 interface MiniMaxCreativeServiceOptions {
-  runCommand: CommandRunner;
+  apiKey: string;
+  fetch?: FetchLike;
 }
 
-export function createMiniMaxCreativeService({ runCommand }: MiniMaxCreativeServiceOptions) {
+export function createMiniMaxCreativeService({
+  apiKey,
+  fetch: fetchImpl = globalThis.fetch as FetchLike
+}: MiniMaxCreativeServiceOptions) {
   return {
     async run(request: MiniMaxCreativeRequest): Promise<CreativeResult> {
       await mkdir(request.artifactDir, { recursive: true });
@@ -47,28 +63,119 @@ export function createMiniMaxCreativeService({ runCommand }: MiniMaxCreativeServ
         return writeFixtureArtifact(request);
       }
 
-      const command = 'mmx';
-      const args =
-        request.kind === 'image'
-          ? ['image', 'generate', '--prompt', request.prompt, '--out-dir', request.artifactDir]
-          : ['music', 'generate', '--prompt', request.prompt, '--out', join(request.artifactDir, 'music.mp3')];
-      const result = await runCommand(command, args);
+      try {
+        if (request.kind === 'image') {
+          return generateImage({ apiKey, fetchImpl, request });
+        }
 
-      if (result.exitCode !== 0) {
+        return generateMusic({ apiKey, fetchImpl, request });
+      } catch (error) {
         return {
           ok: false,
-          error: redactSecrets(result.stderr || result.stdout || 'MiniMax media generation failed.')
+          error: redactSecrets(error)
         };
       }
-
-      const artifact = artifactFor(request, false);
-      return {
-        ok: true,
-        artifact,
-        artifactPath: artifact.path,
-        text: request.kind === 'image' ? 'The image is ready.' : 'The music is ready.'
-      };
     }
+  };
+}
+
+async function generateImage({
+  apiKey,
+  fetchImpl,
+  request
+}: {
+  apiKey: string;
+  fetchImpl: FetchLike;
+  request: MiniMaxCreativeRequest;
+}): Promise<CreativeResult> {
+  const response = await fetchImpl(minimaxImageEndpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'image-01',
+      prompt: request.prompt,
+      response_format: 'base64'
+    })
+  });
+
+  if (!response.ok) {
+    const body = response.text ? await response.text() : '';
+    throw createMiniMaxApiError(response.status, body, 'MiniMax image generation failed');
+  }
+
+  const body = responseToRecord(await response.json());
+  const imageBase64 = findString(body, ['data.image_base64', 'data.image', 'image_base64', 'image']);
+
+  if (!imageBase64) {
+    throw new Error('MiniMax image generation returned no image data.');
+  }
+
+  const artifact = artifactFor(request, false);
+
+  if (!artifact.path) {
+    return { ok: false, error: 'Artifact path could not be resolved.' };
+  }
+
+  await writeFile(artifact.path, Buffer.from(imageBase64, 'base64'));
+
+  return {
+    ok: true,
+    artifact,
+    artifactPath: artifact.path,
+    text: 'The image is ready.'
+  };
+}
+
+async function generateMusic({
+  apiKey,
+  fetchImpl,
+  request
+}: {
+  apiKey: string;
+  fetchImpl: FetchLike;
+  request: MiniMaxCreativeRequest;
+}): Promise<CreativeResult> {
+  const response = await fetchImpl(minimaxMusicEndpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'music-2.6',
+      prompt: request.prompt,
+      instrumental: true
+    })
+  });
+
+  if (!response.ok) {
+    const body = response.text ? await response.text() : '';
+    throw createMiniMaxApiError(response.status, body, 'MiniMax music generation failed');
+  }
+
+  const body = responseToRecord(await response.json());
+  const audioHex = findString(body, ['data.audio', 'audio', 'data.audio_hex', 'audio_hex']);
+
+  if (!audioHex) {
+    throw new Error('MiniMax music generation returned no audio data.');
+  }
+
+  const artifact = artifactFor(request, false);
+
+  if (!artifact.path) {
+    return { ok: false, error: 'Artifact path could not be resolved.' };
+  }
+
+  await writeFile(artifact.path, Buffer.from(audioHex, 'hex'));
+
+  return {
+    ok: true,
+    artifact,
+    artifactPath: artifact.path,
+    text: 'The music is ready.'
   };
 }
 
@@ -100,7 +207,7 @@ function artifactFor(request: MiniMaxCreativeRequest, fixture: boolean): Artifac
     return {
       id,
       kind: 'image',
-      path: join(request.artifactDir, 'image.svg'),
+      path: join(request.artifactDir, fixture ? 'image.svg' : 'image.png'),
       title: request.prompt
     };
   }
@@ -111,6 +218,28 @@ function artifactFor(request: MiniMaxCreativeRequest, fixture: boolean): Artifac
     path: join(request.artifactDir, fixture ? 'music.wav' : 'music.mp3'),
     title: request.prompt
   };
+}
+
+function responseToRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function findString(record: Record<string, unknown>, paths: string[]) {
+  for (const path of paths) {
+    const value = path.split('.').reduce<unknown>((current, segment) => {
+      if (!current || typeof current !== 'object') {
+        return undefined;
+      }
+
+      return (current as Record<string, unknown>)[segment];
+    }, record);
+
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 function fixtureSvg(prompt: string) {

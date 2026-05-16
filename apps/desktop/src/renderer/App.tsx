@@ -3,10 +3,10 @@ import {
   type AgentBirthDraft,
   type AgentProfile,
   type ApprovalRequest,
-  type CliEvent,
   type ConnectorConfig,
   type MemoryItem,
   type SetupStatus,
+  type TaskEvent,
   type TimelineEvent,
   type VoiceSessionState
 } from '@bubbles/core';
@@ -22,6 +22,7 @@ export interface ChatMessage {
   artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string; title?: string }>;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
   text: string;
+  voiceText?: string;
 }
 
 const initialMessages: ChatMessage[] = [
@@ -41,7 +42,7 @@ interface BubblesAppState {
   connectors: ConnectorConfig[];
   messages: ChatMessage[];
   recentMemories: MemoryItem[];
-  taskEvents: CliEvent[];
+  taskEvents: TaskEvent[];
   timelineEvents: TimelineEvent[];
   voiceState: VoiceSessionState;
 }
@@ -80,9 +81,11 @@ export function App() {
   } = appState;
   const chatEnabled = !window.bubbles?.setup || setupStatus?.state === 'ready';
 
-  const latestBubbleText = useMemo(() => {
-    return [...messages].reverse().find((message) => message.author === 'bubbles')?.text ?? 'Ready when you are.';
+  const latestBubbleMessage = useMemo(() => {
+    return [...messages].reverse().find((message) => message.author === 'bubbles');
   }, [messages]);
+  const latestBubbleText = latestBubbleMessage?.text ?? 'Ready when you are.';
+  const latestBubbleVoiceText = latestBubbleMessage?.voiceText ?? latestBubbleText;
   const pendingApproval = useMemo(() => {
     const approval = approvals.find((candidate) => candidate.status === 'pending');
     return approval ? { id: approval.id, title: approval.title } : undefined;
@@ -123,13 +126,15 @@ export function App() {
 
   const voiceSession = useVoiceSession({
     chatEnabled,
-    latestBubbleText,
+    initialWakePhraseEnabled: windowRole === 'panel' && Boolean(window.bubbles?.voice),
+    latestBubbleText: latestBubbleVoiceText,
     pendingApproval,
+    sideEffectsEnabled: windowRole === 'panel' || !window.bubbles,
     onApprovalResolved: refreshState,
     onTranscript: submitUserText
   });
   const displayAvatarState = voiceAvatarState(avatarState, voiceSession.voiceState);
-  const displayBubbleText = voiceSession.voiceState.captionText || latestBubbleText;
+  const displayBubbleText = voiceSession.voiceState.captionText || latestBubbleMessage?.voiceText || latestBubbleText;
 
   useEffect(() => {
     return window.bubbles?.onPanelStateChange((isOpen) => setPanelOpen(isOpen));
@@ -403,7 +408,7 @@ function createRendererVoiceState(overrides: Partial<VoiceSessionState> = {}): V
   return {
     enabled: false,
     mode: 'push-to-talk',
-    provider: 'native-macos',
+    provider: 'gemini',
     status: 'idle',
     activeTurnId: undefined,
     partialText: '',

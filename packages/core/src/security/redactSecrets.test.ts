@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { redactSecrets } from './redactSecrets.js';
 
 describe('redactSecrets', () => {
-  it('redacts MiniMax keys, bearer tokens, and CLI auth arguments', () => {
+  it('redacts MiniMax keys, bearer tokens, and API key arguments', () => {
     const raw = [
       'MiniMax failed with key sk-cp-1234567890abcdef',
       'Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz',
-      'mmx auth login --api-key sk-cp-dangerous-secret'
+      'external-tool --api-key sk-cp-dangerous-secret'
     ].join('\n');
 
     const redacted = redactSecrets(raw);

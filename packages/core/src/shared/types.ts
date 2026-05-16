@@ -14,10 +14,6 @@ export type TaskType =
   | 'research.web'
   | 'coding.project'
   | 'coding.landing_page'
-  | 'email.read'
-  | 'email.reply'
-  | 'calendar.read'
-  | 'calendar.update'
   | 'agent.create'
   | 'creative.image'
   | 'creative.music'
@@ -33,25 +29,15 @@ export interface ArtifactMetadata {
 
 export type ApprovalRisk = 'low' | 'medium' | 'high';
 
-export type ConnectorType = 'web_search' | 'local_files' | 'email' | 'calendar';
-export type ConnectorMode = 'real' | 'fixture';
+export type ConnectorType = 'tavily_research';
+export type ConnectorMode = 'real';
 export type ConnectorAuthStatus = 'not_configured' | 'needs_auth' | 'ready' | 'error';
 export type ConnectorHealthStatus = 'unknown' | 'healthy' | 'unhealthy';
 
 export interface ConnectorLaunchConfig {
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  httpUrl?: string;
-  oauth?: {
-    provider: 'google-workspace';
-    scopes: string[];
-    tokenKey?: string;
-    accessTokenEnv?: string;
-  };
-  mcpTools?: Record<string, string>;
-  approvedRoots?: string[];
-  fixture?: Record<string, unknown>;
+  remoteUrl?: string;
+  maxResults?: number;
+  searchDepth?: 'basic' | 'advanced';
 }
 
 export interface ConnectorConfig {
@@ -115,7 +101,7 @@ export interface TaskPacket {
   };
 }
 
-export interface CliEvent {
+export interface TaskEvent {
   taskId: string;
   type:
     | 'task.received'
@@ -137,11 +123,8 @@ export interface ApprovalRequest {
   taskId: string;
   agentId: string;
   actionType:
-    | 'send_email'
-    | 'calendar_update'
     | 'file_write'
     | 'shell_command'
-    | 'cli_install'
     | 'agent_file_create'
     | 'external_data_send';
   risk: ApprovalRisk;

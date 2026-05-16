@@ -3,8 +3,8 @@ export function redactSecrets(value: unknown): string {
 
   return text
     .replace(/(--api-key)\s+\S+/gi, '$1 [REDACTED]')
-    .replace(/Bearer\s+sk(?:-cp)?-[A-Za-z0-9_-]+/gi, 'Bearer [REDACTED]')
-    .replace(/sk(?:-cp)?-[A-Za-z0-9_-]+/g, '[REDACTED]');
+    .replace(/Bearer\s+(?:sk(?:-cp)?|tvly)-[A-Za-z0-9_-]+/gi, 'Bearer [REDACTED]')
+    .replace(/(?:sk(?:-cp)?|tvly)-[A-Za-z0-9_-]+/g, '[REDACTED]');
 }
 
 function valueToText(value: unknown): string {

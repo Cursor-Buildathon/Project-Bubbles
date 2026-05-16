@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "corepack pnpm --filter @bubbles/desktop dev",
     "build": "corepack pnpm --filter @bubbles/desktop build",
-    "mcp:search-fixture": "node tools/mcp/search-fixture.mjs",
     "test": "corepack pnpm -r test",
     "test:core": "corepack pnpm --filter @bubbles/core test",
     "test:desktop": "corepack pnpm --filter @bubbles/desktop test",

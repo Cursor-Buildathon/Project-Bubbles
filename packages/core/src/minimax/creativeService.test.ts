@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCreativeService, createMiniMaxCreativeService } from './creativeService.js';
+
+const tempDirs: string[] = [];
+
+async function makeTempDir() {
+  const dir = await mkdtemp(join(tmpdir(), 'bubbles-media-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
 
 describe('createCreativeService', () => {
   it('routes creative requests through the configured runner', async () => {
@@ -15,67 +30,101 @@ describe('createCreativeService', () => {
       text: 'created voice: friendly intro'
     });
   });
+});
 
-  it('constructs explicit MiniMax CLI commands for image artifacts', async () => {
-    const commands: Array<{ command: string; args: string[] }> = [];
-    const service = createMiniMaxCreativeService({
-      runCommand: async (command, args) => {
-        commands.push({ command, args });
-        return { exitCode: 0, stderr: '', stdout: '' };
-      }
+describe('createMiniMaxCreativeService', () => {
+  it('generates image artifacts through the direct MiniMax image API', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { image_base64: Buffer.from('png-bytes').toString('base64') } })
+    });
+    const service = createMiniMaxCreativeService({ apiKey: 'sk-cp-token', fetch: fetchMock });
+
+    const result = await service.run({
+      artifactDir,
+      fixture: false,
+      kind: 'image',
+      prompt: 'neon desk setup'
     });
 
-    await expect(
-      service.run({
-        artifactDir: '/tmp/bubbles-artifacts',
-        fixture: false,
-        kind: 'image',
-        prompt: 'neon desk setup'
-      })
-    ).resolves.toMatchObject({
+    expect(result).toMatchObject({
       ok: true,
       artifact: {
-        kind: 'image'
+        kind: 'image',
+        path: join(artifactDir, 'image.png')
       }
     });
-    expect(commands).toEqual([
-      {
-        command: 'mmx',
-        args: ['image', 'generate', '--prompt', 'neon desk setup', '--out-dir', '/tmp/bubbles-artifacts']
-      }
-    ]);
+    await expect(readFile(join(artifactDir, 'image.png'), 'utf8')).resolves.toBe('png-bytes');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.minimax.io/v1/image_generation',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-cp-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'image-01',
+          prompt: 'neon desk setup',
+          response_format: 'base64'
+        })
+      })
+    );
   });
 
-  it('constructs explicit MiniMax CLI commands for music artifacts', async () => {
-    const commands: Array<{ command: string; args: string[] }> = [];
-    const service = createMiniMaxCreativeService({
-      runCommand: async (command, args) => {
-        commands.push({ command, args });
-        return { exitCode: 0, stderr: '', stdout: '' };
-      }
+  it('generates music artifacts through the direct MiniMax music API', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { audio: Buffer.from('mp3-bytes').toString('hex') } })
     });
+    const service = createMiniMaxCreativeService({ apiKey: 'sk-cp-token', fetch: fetchMock });
 
-    await service.run({
-      artifactDir: '/tmp/bubbles-artifacts',
+    const result = await service.run({
+      artifactDir,
       fixture: false,
       kind: 'music',
       prompt: 'upbeat launch theme'
     });
 
-    expect(commands[0]).toEqual({
-      command: 'mmx',
-      args: ['music', 'generate', '--prompt', 'upbeat launch theme', '--out', '/tmp/bubbles-artifacts/music.mp3']
+    expect(result).toMatchObject({
+      ok: true,
+      artifact: {
+        kind: 'audio',
+        path: join(artifactDir, 'music.mp3')
+      }
     });
+    await expect(readFile(join(artifactDir, 'music.mp3'), 'utf8')).resolves.toBe('mp3-bytes');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.minimax.io/v1/music_generation',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-cp-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'music-2.6',
+          prompt: 'upbeat launch theme',
+          instrumental: true
+        })
+      })
+    );
   });
 
   it('writes deterministic fixture artifacts for CI', async () => {
+    const artifactDir = await makeTempDir();
     const service = createMiniMaxCreativeService({
-      runCommand: async () => ({ exitCode: 1, stderr: 'should not run', stdout: '' })
+      apiKey: 'sk-cp-token',
+      fetch: vi.fn().mockRejectedValue(new Error('should not fetch'))
     });
 
     await expect(
       service.run({
-        artifactDir: '/tmp/bubbles-artifacts',
+        artifactDir,
         fixture: true,
         kind: 'image',
         prompt: 'fixture poster'
@@ -84,7 +133,7 @@ describe('createCreativeService', () => {
       ok: true,
       artifact: {
         kind: 'image',
-        path: '/tmp/bubbles-artifacts/image.svg'
+        path: join(artifactDir, 'image.svg')
       }
     });
   });

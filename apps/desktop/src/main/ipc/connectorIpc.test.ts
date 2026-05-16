@@ -1,52 +1,51 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createConnectorUpdateFeatureGate } from './connectorIpc.js';
+import { registerConnectorIpc } from './connectorIpc.js';
+
+const handles = new Map<string, (...args: unknown[]) => unknown>();
 
 vi.mock('electron', () => ({
   ipcMain: {
-    handle: vi.fn()
+    handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
+      handles.set(channel, handler);
+    })
   }
 }));
 
-describe('createConnectorUpdateFeatureGate', () => {
-  it('downgrades Gmail real-mode setup to fixture mode when the real connector flag is off', () => {
-    const normalize = createConnectorUpdateFeatureGate({
-      calendarRealEnabled: true,
-      gmailRealEnabled: false
-    });
-
-    expect(
-      normalize('email', {
-        authStatus: 'needs_auth',
-        healthStatus: 'unhealthy',
-        launchConfig: {
-          httpUrl: 'https://gmailmcp.googleapis.com/mcp/v1'
-        },
-        mode: 'real'
-      })
-    ).toMatchObject({
-      authStatus: 'ready',
-      healthStatus: 'healthy',
+describe('registerConnectorIpc', () => {
+  it('updates Tavily connector settings without legacy fixture downgrades', async () => {
+    handles.clear();
+    const connector = {
+      id: 'tavily-research',
+      name: 'Tavily Research',
+      type: 'tavily_research',
+      enabled: false,
+      mode: 'real',
+      authStatus: 'not_configured',
+      healthStatus: 'unknown',
+      allowedAgents: ['research-agent'],
+      requiredApproval: 'none',
       launchConfig: {},
-      mode: 'fixture'
-    });
-  });
+      updatedAt: '2026-05-14T00:00:00.000Z'
+    } as const;
+    const connectorRegistry = {
+      disconnect: vi.fn(),
+      get: vi.fn(),
+      list: vi.fn().mockResolvedValue([connector]),
+      setHealth: vi.fn(),
+      update: vi.fn().mockResolvedValue({ ...connector, enabled: true })
+    };
+    const onChanged = vi.fn();
 
-  it('keeps Calendar real-mode setup intact when the real connector flag is on', () => {
-    const normalize = createConnectorUpdateFeatureGate({
-      calendarRealEnabled: true,
-      gmailRealEnabled: false
-    });
-
-    expect(
-      normalize('calendar', {
-        authStatus: 'needs_auth',
-        healthStatus: 'unhealthy',
-        mode: 'real'
-      })
-    ).toMatchObject({
-      authStatus: 'needs_auth',
-      healthStatus: 'unhealthy',
+    registerConnectorIpc({ connectorRegistry, onChanged });
+    await handles.get('connectors:update')?.({}, 'tavily-research', {
+      enabled: true,
       mode: 'real'
     });
+
+    expect(connectorRegistry.update).toHaveBeenCalledWith('tavily-research', {
+      enabled: true,
+      mode: 'real'
+    });
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 });
