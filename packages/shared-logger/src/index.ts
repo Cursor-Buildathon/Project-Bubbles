@@ -10,6 +10,10 @@ export function createLogger(name: string): Logger {
 	return pino({ name, level });
 }
 
-export function hello(): string {
-	return "hello";
+/**
+ * Returns a child logger with `turnId` bound to every log line.
+ * Use in IPC handlers to correlate log entries across a single agent turn.
+ */
+export function withTurnId(logger: Logger, turnId: string): Logger {
+	return logger.child({ turnId });
 }

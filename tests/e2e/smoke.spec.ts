@@ -1,21 +1,16 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
+import { _electron } from "playwright";
 
 test.describe("smoke", () => {
 	test("electron window opens with Bubbles title", async () => {
-		const { _electron } = await import("playwright");
-		const electronPath = require("electron") as string;
-		const desktopRoot = path.resolve(__dirname, "../../apps/desktop");
-
 		const app = await _electron.launch({
-			executablePath: electronPath,
 			args: ["."],
-			cwd: desktopRoot,
+			cwd: "apps/desktop",
+			env: {
+				...process.env,
+				BUBBLES_TEST_MODE: "1",
+				NODE_ENV: "test",
+			},
 		});
 
 		const window = await app.firstWindow({ timeout: 30_000 });

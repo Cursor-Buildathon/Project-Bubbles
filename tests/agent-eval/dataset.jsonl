@@ -1,0 +1,90 @@
+{"id":"b-001","agentId":"bubbles","prompt":"Say hello and introduce yourself.","rubric":["Greets warmly","Mentions name Bubbles","Concise under 2 sentences"],"expectedTools":[],"minScore":4}
+{"id":"b-002","agentId":"bubbles","prompt":"What is the capital of France?","rubric":["Answers Paris","No extra fluff","Correct factual info"],"expectedTools":[],"minScore":4}
+{"id":"b-003","agentId":"bubbles","prompt":"Tell me a short joke.","rubric":["Tells a joke","Humorous tone","Under 3 sentences"],"expectedTools":[],"minScore":3}
+{"id":"b-004","agentId":"bubbles","prompt":"What files are in my workspace?","rubric":["Offers to check files","Mentions listDir tool","Polite tone"],"expectedTools":["listDir"],"minScore":4}
+{"id":"b-005","agentId":"bubbles","prompt":"Read the file README.md for me.","rubric":["Offers to read file","Mentions readFile tool","Asks if not found"],"expectedTools":["readFile"],"minScore":4}
+{"id":"b-006","agentId":"bubbles","prompt":"Help me organize my todo list.","rubric":["Asks clarifying questions","Offers concrete help","Friendly tone"],"expectedTools":[],"minScore":4}
+{"id":"b-007","agentId":"bubbles","prompt":"What can you do?","rubric":["Lists capabilities","Mentions tools available","Invites user to ask"],"expectedTools":[],"minScore":4}
+{"id":"b-008","agentId":"bubbles","prompt":"Good morning!","rubric":["Returns greeting","Warm tone","Mentions time of day"],"expectedTools":[],"minScore":4}
+{"id":"b-009","agentId":"bubbles","prompt":"Explain quantum computing simply.","rubric":["Simplifies concept","Accurate analogy","Accessible language"],"expectedTools":[],"minScore":4}
+{"id":"b-010","agentId":"bubbles","prompt":"What is 2+2?","rubric":["Answers 4","Direct and clear","No unnecessary text"],"expectedTools":[],"minScore":4}
+{"id":"b-011","agentId":"bubbles","prompt":"Can you write a poem about coding?","rubric":["Writes a poem","Coding theme","Creative"],"expectedTools":[],"minScore":3}
+{"id":"b-012","agentId":"bubbles","prompt":"Summarize the last conversation.","rubric":["Acknowledges memory","Offers summary","Polite"],"expectedTools":[],"minScore":4}
+{"id":"b-013","agentId":"bubbles","prompt":"Set a reminder for me.","rubric":["Explains limitation","Suggests alternative","Helpful tone"],"expectedTools":[],"minScore":4}
+{"id":"b-014","agentId":"bubbles","prompt":"What is your favorite color?","rubric":["Answers playfully","Stays in character","Engaging"],"expectedTools":[],"minScore":3}
+{"id":"b-015","agentId":"bubbles","prompt":"Help me debug: my app crashes on startup.","rubric":["Asks for details","Suggests checklist","Encouraging"],"expectedTools":[],"minScore":4}
+{"id":"b-016","agentId":"bubbles","prompt":"Translate 'hello' to Spanish.","rubric":["Correct translation","Mentions 'hola'","Optional context"],"expectedTools":[],"minScore":4}
+{"id":"b-017","agentId":"bubbles","prompt":"What is the weather like?","rubric":["Explains no weather access","Suggests alternative","Polite"],"expectedTools":[],"minScore":4}
+{"id":"b-018","agentId":"bubbles","prompt":"Create a new project folder.","rubric":["Explains file tool usage","Offers to help","Clear steps"],"expectedTools":[],"minScore":4}
+{"id":"b-019","agentId":"bubbles","prompt":"Tell me about yourself.","rubric":["Introduces as Bubbles","Mentions desktop AI","Friendly"],"expectedTools":[],"minScore":4}
+{"id":"b-020","agentId":"bubbles","prompt":"How do I use Bubbles effectively?","rubric":["Gives tips","Mentions chat and tools","Encouraging"],"expectedTools":[],"minScore":4}
+{"id":"b-021","agentId":"bubbles","prompt":"Can you read my config.json?","rubric":["Offers readFile","Asks for path","Helpful"],"expectedTools":["readFile"],"minScore":4}
+{"id":"b-022","agentId":"bubbles","prompt":"What is TypeScript?","rubric":["Defines TypeScript","Mentions JavaScript superset","Concise"],"expectedTools":[],"minScore":4}
+{"id":"b-023","agentId":"bubbles","prompt":"Help me plan my day.","rubric":["Asks priorities","Suggests structure","Supportive"],"expectedTools":[],"minScore":4}
+{"id":"b-024","agentId":"bubbles","prompt":"Is my workspace empty?","rubric":["Offers to check","Uses listDir concept","Clear answer"],"expectedTools":["listDir"],"minScore":4}
+{"id":"b-025","agentId":"bubbles","prompt":"Give me a coding tip.","rubric":["Provides tip","Practical advice","Concise"],"expectedTools":[],"minScore":4}
+{"id":"b-026","agentId":"bubbles","prompt":"What is SQLite?","rubric":["Defines SQLite","Mentions database","Accurate"],"expectedTools":[],"minScore":4}
+{"id":"b-027","agentId":"bubbles","prompt":"Can you delete a file?","rubric":["Explains limitation","Mentions no delete tool","Suggests workaround"],"expectedTools":[],"minScore":4}
+{"id":"b-028","agentId":"bubbles","prompt":"Write a haiku about AI.","rubric":["5-7-5 structure","AI theme","Creative"],"expectedTools":[],"minScore":3}
+{"id":"b-029","agentId":"bubbles","prompt":"How do I switch agents?","rubric":["Explains switcher","Mentions 3 agents","Clear steps"],"expectedTools":[],"minScore":4}
+{"id":"b-030","agentId":"bubbles","prompt":"What is Electron?","rubric":["Defines Electron","Mentions desktop apps","Concise"],"expectedTools":[],"minScore":4}
+{"id":"c-001","agentId":"coda","prompt":"Create a hello.txt file with my name.","rubric":["Proposes plan_mode","Asks for name if missing","Clear steps"],"expectedTools":["plan_mode","writeFile"],"minScore":4}
+{"id":"c-002","agentId":"coda","prompt":"Write a Python script that prints numbers 1 to 10.","rubric":["Provides code","Python syntax","Runnable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-003","agentId":"coda","prompt":"Fix this bug: array index out of bounds.","rubric":["Suggests fix","Explains bounds checking","Code example"],"expectedTools":[],"minScore":4}
+{"id":"c-004","agentId":"coda","prompt":"Create a todo.md with 3 tasks.","rubric":["Uses plan_mode or writeFile","3 tasks listed","Markdown format"],"expectedTools":["plan_mode","writeFile"],"minScore":4}
+{"id":"c-005","agentId":"coda","prompt":"Refactor this function to use async/await.","rubric":["Shows refactored code","Explains changes","Best practices"],"expectedTools":[],"minScore":4}
+{"id":"c-006","agentId":"coda","prompt":"Set up a basic React component.","rubric":["Provides component code","TypeScript if relevant","Clean structure"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-007","agentId":"coda","prompt":"What files are in the project?","rubric":["Uses listDir","Reports file names","Organized"],"expectedTools":["listDir"],"minScore":4}
+{"id":"c-008","agentId":"coda","prompt":"Read package.json and tell me the dependencies.","rubric":["Uses readFile","Lists dependencies","Accurate"],"expectedTools":["readFile"],"minScore":4}
+{"id":"c-009","agentId":"coda","prompt":"Create a .gitignore for Node.js.","rubric":["Standard entries","Node.js focused","Complete"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-010","agentId":"coda","prompt":"Explain the difference between let and const.","rubric":["Clear distinction","Code examples","Accurate"],"expectedTools":[],"minScore":4}
+{"id":"c-011","agentId":"coda","prompt":"Write a unit test for a sum function.","rubric":["Test framework agnostic","Covers edge cases","Runnable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-012","agentId":"coda","prompt":"Create a README for this project.","rubric":["Standard sections","Markdown","Professional"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-013","agentId":"coda","prompt":"How do I handle errors in async code?","rubric":["try/catch pattern","Best practices","Examples"],"expectedTools":[],"minScore":4}
+{"id":"c-014","agentId":"coda","prompt":"Create a simple API route handler.","rubric":["HTTP method handling","Error responses","Clean code"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-015","agentId":"coda","prompt":"What is the current file structure?","rubric":["Uses listDir","Tree-like output","Complete"],"expectedTools":["listDir"],"minScore":4}
+{"id":"c-016","agentId":"coda","prompt":"Write a CSS reset file.","rubric":["Common reset rules","CSS syntax","Usable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-017","agentId":"coda","prompt":"Explain dependency injection.","rubric":["Clear concept","Code example","Benefits listed"],"expectedTools":[],"minScore":4}
+{"id":"c-018","agentId":"coda","prompt":"Create a Dockerfile for a Node app.","rubric":["Multi-stage optional","Best practices","Runnable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-019","agentId":"coda","prompt":"Review this code for security issues.","rubric":["Identifies risks","Suggests fixes","Prioritized"],"expectedTools":[],"minScore":4}
+{"id":"c-020","agentId":"coda","prompt":"Set up ESLint config.","rubric":["Standard rules","Extensible","Modern"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-021","agentId":"coda","prompt":"Create a TypeScript interface for a User.","rubric":["Proper types","Optional fields","Extensible"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-022","agentId":"coda","prompt":"How do I optimize a slow database query?","rubric":["Indexing suggestion","Query analysis","Best practices"],"expectedTools":[],"minScore":4}
+{"id":"c-023","agentId":"coda","prompt":"Write a shell script to backup files.","rubric":["Bash syntax","Error handling","Usable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-024","agentId":"coda","prompt":"Create a JSON config file for the app.","rubric":["Valid JSON","Sensible defaults","Documented"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-025","agentId":"coda","prompt":"Explain how promises work in JavaScript.","rubric":["State machine concept",".then/.catch","Async flow"],"expectedTools":[],"minScore":4}
+{"id":"c-026","agentId":"coda","prompt":"Create a GitHub Actions workflow file.","rubric":["YAML syntax","Common steps","Runnable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-027","agentId":"coda","prompt":"What is the difference between REST and GraphQL?","rubric":["Clear comparison","Use cases","Trade-offs"],"expectedTools":[],"minScore":4}
+{"id":"c-028","agentId":"coda","prompt":"Write a validation function for email.","rubric":["Regex or logic","Edge cases","Reusable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-029","agentId":"coda","prompt":"Create a docker-compose.yml for dev.","rubric":["Services defined","Volumes/ports","Usable"],"expectedTools":["writeFile"],"minScore":4}
+{"id":"c-030","agentId":"coda","prompt":"How do I set up hot reload in Vite?","rubric":["Config example","Explanation","Works"],"expectedTools":[],"minScore":4}
+{"id":"s-001","agentId":"sage","prompt":"Analyze the pros and cons of remote work.","rubric":["Balanced view","Multiple dimensions","Thoughtful"],"expectedTools":[],"minScore":4}
+{"id":"s-002","agentId":"sage","prompt":"What are the ethical implications of AI?","rubric":["Multiple perspectives","Nuanced","Well-reasoned"],"expectedTools":[],"minScore":4}
+{"id":"s-003","agentId":"sage","prompt":"Summarize the key principles of clean code.","rubric":["Core principles","Examples implied","Concise"],"expectedTools":[],"minScore":4}
+{"id":"s-004","agentId":"sage","prompt":"Compare SQL and NoSQL databases.","rubric":["Use cases","Trade-offs","Balanced"],"expectedTools":[],"minScore":4}
+{"id":"s-005","agentId":"sage","prompt":"What is the future of web development?","rubric":["Trends mentioned","Reasoned predictions","Balanced"],"expectedTools":[],"minScore":4}
+{"id":"s-006","agentId":"sage","prompt":"Explain the CAP theorem simply.","rubric":["Three properties","Trade-off explained","Accessible"],"expectedTools":[],"minScore":4}
+{"id":"s-007","agentId":"sage","prompt":"What factors should I consider when choosing a tech stack?","rubric":["Multiple factors","Prioritization guidance","Practical"],"expectedTools":[],"minScore":4}
+{"id":"s-008","agentId":"sage","prompt":"Analyze the benefits of TypeScript over JavaScript.","rubric":["Type safety","Tooling","Trade-offs"],"expectedTools":[],"minScore":4}
+{"id":"s-009","agentId":"sage","prompt":"What is domain-driven design?","rubric":["Core concepts","Bounded contexts","Practical value"],"expectedTools":[],"minScore":4}
+{"id":"s-010","agentId":"sage","prompt":"How does memory management work in V8?","rubric":["GC concepts","Generational","Accurate"],"expectedTools":[],"minScore":4}
+{"id":"s-011","agentId":"sage","prompt":"What are the risks of microservices?","rubric":["Complexity","Operational","Distributed"],"expectedTools":[],"minScore":4}
+{"id":"s-012","agentId":"sage","prompt":"Explain event-driven architecture.","rubric":["Core pattern","Benefits","Use cases"],"expectedTools":[],"minScore":4}
+{"id":"s-013","agentId":"sage","prompt":"What is the single responsibility principle?","rubric":["Clear definition","Example","Why it matters"],"expectedTools":[],"minScore":4}
+{"id":"s-014","agentId":"sage","prompt":"Compare monorepo vs polyrepo strategies.","rubric":["Trade-offs","Team size factor","Tooling"],"expectedTools":[],"minScore":4}
+{"id":"s-015","agentId":"sage","prompt":"What is observability in software systems?","rubric":["Metrics/logs/traces","Proactive","Practical"],"expectedTools":[],"minScore":4}
+{"id":"s-016","agentId":"sage","prompt":"Explain how OAuth 2.0 works.","rubric":["Actors defined","Flow explained","Security"],"expectedTools":[],"minScore":4}
+{"id":"s-017","agentId":"sage","prompt":"What are the trade-offs of serverless?","rubric":["Cold starts","Vendor lock-in","Cost/scaling"],"expectedTools":[],"minScore":4}
+{"id":"s-018","agentId":"sage","prompt":"How do you design for scalability?","rubric":["Horizontal scaling","Caching","Database"],"expectedTools":[],"minScore":4}
+{"id":"s-019","agentId":"sage","prompt":"What is test-driven development?","rubric":["Red-green-refactor","Benefits","When to use"],"expectedTools":[],"minScore":4}
+{"id":"s-020","agentId":"sage","prompt":"Explain eventual consistency.","rubric":["Definition","Use cases","Trade-offs"],"expectedTools":[],"minScore":4}
+{"id":"s-021","agentId":"sage","prompt":"What makes a good API design?","rubric":["RESTful principles","Versioning","Documentation"],"expectedTools":[],"minScore":4}
+{"id":"s-022","agentId":"sage","prompt":"How do you approach technical debt?","rubric":["Identification","Prioritization","Prevention"],"expectedTools":[],"minScore":4}
+{"id":"s-023","agentId":"sage","prompt":"What is the strangler fig pattern?","rubric":["Migration pattern","Incremental","Risk reduction"],"expectedTools":[],"minScore":4}
+{"id":"s-024","agentId":"sage","prompt":"Compare functional vs OOP programming.","rubric":["Paradigm differences","When to use","Hybrid"],"expectedTools":[],"minScore":4}
+{"id":"s-025","agentId":"sage","prompt":"What is a circuit breaker pattern?","rubric":["Failure handling","States","Use case"],"expectedTools":[],"minScore":4}
+{"id":"s-026","agentId":"sage","prompt":"How do you secure a web application?","rubric":["Multiple layers","Common threats","Best practices"],"expectedTools":[],"minScore":4}
+{"id":"s-027","agentId":"sage","prompt":"What is the difference between latency and throughput?","rubric":["Definitions","Relationship","Examples"],"expectedTools":[],"minScore":4}
+{"id":"s-028","agentId":"sage","prompt":"Explain blue-green deployment.","rubric":["Zero downtime","Rollback","Infrastructure"],"expectedTools":[],"minScore":4}
+{"id":"s-029","agentId":"sage","prompt":"What is idempotency and why does it matter?","rubric":["Definition","API safety","Examples"],"expectedTools":[],"minScore":4}
+{"id":"s-030","agentId":"sage","prompt":"How do you mentor junior developers effectively?","rubric":["Patience","Structured learning","Feedback"],"expectedTools":[],"minScore":4}

@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": true,
-		"includes": ["**", "!**/.cursor"]
+		"includes": ["**", "!**/.cursor", "!**/bubbles-base"]
 	},
 	"formatter": {
 		"indentStyle": "tab"

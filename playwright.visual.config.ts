@@ -10,4 +10,11 @@ export default defineConfig({
 	fullyParallel: false,
 	workers: 1,
 	reporter: [["list"]],
+	snapshotPathTemplate: "{testDir}/snapshots/{projectName}/{arg}{ext}",
+	expect: {
+		toHaveScreenshot: {
+			maxDiffPixels: 50,
+			threshold: 0.2,
+		},
+	},
 });

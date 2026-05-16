@@ -1,3 +1,2 @@
-export function hello(): string {
-	return "hello";
-}
+export type { Decision, GuardConfig, UserDecision } from "./Guard";
+export { Guard } from "./Guard";

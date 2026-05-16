@@ -3,17 +3,27 @@
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
-	"main": "out/main/index.js",
+	"main": "out/main/index.cjs",
 	"scripts": {
-		"dev": "electron-vite dev",
+		"dev": "node scripts/dev.mjs dev",
 		"build": "electron-vite build",
-		"preview": "electron-vite preview",
+		"package:mac": "pnpm build && electron-builder --mac dmg --config.mac.identity=null",
+		"package:win": "pnpm build && electron-builder --win nsis",
+		"preview": "node scripts/dev.mjs preview",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"rebuild": "electron-rebuild -f -w better-sqlite3"
 	},
 	"dependencies": {
-		"@bubbles/shared-logger": "workspace:*"
+		"@bubbles/agent-runtime": "workspace:*",
+		"@bubbles/cost-meter": "workspace:*",
+		"@bubbles/memory-core": "workspace:*",
+		"@bubbles/minimax-client": "workspace:*",
+		"@bubbles/permission-guard": "workspace:*",
+		"@bubbles/shared-logger": "workspace:*",
+		"@bubbles/shared-types": "workspace:*",
+		"@bubbles/tool-kit": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.0",
@@ -21,6 +31,7 @@
 		"@vitest/coverage-v8": "^3.0.5",
 		"electron": "^32.3.3",
 		"electron-builder": "^25.1.8",
+		"electron-rebuild": "^3.2.9",
 		"electron-vite": "^3.1.0",
 		"typescript": "~5.6.3",
 		"vite": "^6.0.11",
@@ -37,14 +48,36 @@
 			"out/**/*",
 			"package.json"
 		],
+		"extraResources": [
+			{
+				"from": "../../assets",
+				"to": "assets"
+			}
+		],
+		"mac": {
+			"target": [
+				"dmg"
+			],
+			"identity": null,
+			"category": "public.app-category.productivity"
+		},
 		"win": {
 			"target": [
 				"nsis"
-			]
+			],
+			"signingHashAlgorithms": null,
+			"signAndEditExecutable": false
 		},
 		"nsis": {
 			"oneClick": false,
 			"allowToChangeInstallationDirectory": true
+		},
+		"publish": {
+			"provider": "github",
+			"owner": "bubbles-app",
+			"repo": "bubbles",
+			"releaseType": "release",
+			"publishAutoUpdate": false
 		}
 	}
 }

@@ -1,0 +1,51 @@
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Dependencies ---
+node_modules/
+
+# --- Logs & debug ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Monorepo (Turborepo) ---
+.turbo/
+
+# --- Build artifacts (turbo.json: dist, out, dist-electron) ---
+dist/
+out/
+dist-electron/
+
+# Electron / electron-builder packaged apps
+apps/desktop/release/
+
+# --- TypeScript / tooling ---
+*.tsbuildinfo
+.eslintcache
+
+# --- Env & secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Test & coverage ---
+coverage/
+playwright-report/
+test-results/
+blob-report/
+**/playwright/.cache/
+
+# --- Vite / bundler ---
+.vite/
+
+# --- Editors (optional machine-local overrides) ---
+.idea/
+*.swp
+*.swo
+*~
