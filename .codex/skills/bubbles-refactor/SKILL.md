@@ -9,7 +9,7 @@ description: Use when refactoring Bubbles MVP core services, Electron IPC, rende
 
 Bubbles has three main layers:
 
-- `packages/core`: pure-ish service logic, typed contracts, sqlite-backed stores, connector abstractions, MiniMax and CLI adapters.
+- `packages/core`: pure-ish service logic, typed contracts, sqlite-backed stores, Tavily connector abstractions, direct MiniMax API clients, voice services, and task orchestration.
 - `apps/desktop/src/main`: Electron windows, app state hydration, IPC registration, keychain/process wiring, and runtime paths.
 - `apps/desktop/src/renderer`: React UI, avatar window, panel workspace, setup/settings screens, task drawer, and timeline/memory presentation.
 
@@ -25,11 +25,12 @@ Keep refactors aligned to those boundaries. Move logic toward `packages/core` wh
 
 ## High-Risk Areas
 
-- `TaskPacket`, `CliEvent`, `ConnectorConfig`, `AgentProfile`, `MemoryItem`, and `SetupStatus` shape changes affect both packages.
+- `TaskPacket`, `TaskEvent`, `ConnectorConfig`, `AgentProfile`, `MemoryItem`, `VoiceSessionState`, `TavilySetupStatus`, and `SetupStatus` shape changes affect both packages.
 - Preload API changes require `global.d.ts`, renderer call sites, and tests to move together.
-- Connector registry changes must preserve fixture mode and approval policy behavior.
-- MiniMax setup must keep General API key and Token Plan key separate.
-- CLI bridge changes must preserve redacted logs, cancellation, timeout, plain stdout parsing, structured event parsing, and MiniMax JSON response parsing.
+- Connector registry changes must preserve Tavily-only real connector behavior unless the task explicitly migrates the connector model.
+- MiniMax setup uses Token Plan keys for text/media/TTS; voice setup stores Gemini STT and optional OpenAI STT fallback keys.
+- Task runner changes must preserve redacted logs, cancellation, setup preflight, task timeline/memory writes, and MiniMax JSON/text response parsing.
+- Media fixture changes must keep `BUBBLES_MINIMAX_MEDIA_FIXTURE` explicit, test/CI-only, and out of live feature or demo paths.
 - Window management changes should be verified in a real Electron runtime when possible.
 
 ## Testing Pattern

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bubbles Development Workflow"
+  short_description: "Develop Bubbles features by current architecture"
+  default_prompt: "Use $bubbles-development-workflow to implement this Bubbles project change."
+policy:
+  allow_implicit_invocation: true

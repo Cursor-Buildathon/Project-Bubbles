@@ -1,7 +1,7 @@
 interface:
   display_name: "Bubbles Tooling And MCP"
-  short_description: "Configure Bubbles debug tools and connectors"
-  default_prompt: "Use $bubbles-tooling-mcp to configure or debug Bubbles MVP tooling."
+  short_description: "Debug Tavily, connectors, and diagnostics"
+  default_prompt: "Use $bubbles-tooling-mcp to configure or debug Bubbles MVP Tavily tooling or local diagnostics."
 dependencies:
   tools:
     - type: "mcp"

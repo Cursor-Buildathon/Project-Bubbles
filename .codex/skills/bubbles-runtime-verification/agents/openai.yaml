@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bubbles Runtime Verification"
+  short_description: "Verify Bubbles runtime flows and UI behavior"
+  default_prompt: "Use $bubbles-runtime-verification to verify this Bubbles runtime change."
+policy:
+  allow_implicit_invocation: true

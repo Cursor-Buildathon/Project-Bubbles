@@ -1,6 +1,6 @@
 ---
 name: bubbles-debugging
-description: Use when debugging Bubbles MVP bugs, failing tests, stalled MiniMax CLI tasks, connector failures, Electron IPC issues, sqlite persistence, renderer state, avatar behavior, or setup problems.
+description: Use when debugging Bubbles MVP bugs, failing tests, stalled MiniMax direct API tasks, Tavily Remote MCP connector failures, Electron IPC issues, sqlite persistence, renderer state, avatar behavior, voice/STT/TTS flows, media artifacts, or setup problems.
 ---
 
 # Bubbles Debugging
@@ -16,9 +16,10 @@ description: Use when debugging Bubbles MVP bugs, failing tests, stalled MiniMax
    - Renderer API mismatch: `apps/desktop/src/main/preload.ts`
    - IPC registration or app state: `apps/desktop/src/main`
    - Business logic: `packages/core/src`
-   - CLI execution: `packages/core/src/cli` and `apps/desktop/src/main/ipc/taskIpc.ts`
-   - Connectors/MCP: `packages/core/src/connectors`
-   - MiniMax setup/API/CLI: `packages/core/src/minimax` and `apps/desktop/src/main/ipc/setupIpc.ts`
+   - Task execution: `packages/core/src/minimax/minimaxTaskRunner.ts` and `apps/desktop/src/main/ipc/taskIpc.ts`
+   - Tavily Remote MCP: `packages/core/src/connectors`
+   - MiniMax setup/API: `packages/core/src/minimax` and `apps/desktop/src/main/ipc/setupIpc.ts`
+   - Voice setup/STT/TTS: `packages/core/src/voice`, `packages/core/src/minimax/ttsService.ts`, and `apps/desktop/src/main/ipc/voiceIpc.ts`
 3. Read the relevant test before editing. Most services already have focused Vitest coverage.
 
 ## Evidence Checklist
@@ -30,12 +31,13 @@ description: Use when debugging Bubbles MVP bugs, failing tests, stalled MiniMax
 
 ## Common Paths
 
-- Stalled task: inspect `createCliBridge`, parser behavior, timeout handling, and `preflightMiniMaxCli`.
-- Bad task result: inspect `cliEventParser`, `extractMiniMaxResponseText`, `createMiniMaxCommand`, and task drawer rendering.
-- Setup cannot finish: inspect `setupService`, `minimaxCliManager`, key store calls, and IPC status broadcasts.
-- Connector unavailable: inspect connector registry state, mode, auth status, launch config, fixture fallback, and health check logic.
+- Stalled task: inspect `createMiniMaxTaskRunner`, `generateMiniMaxText`, cancellation, `preflightMiniMaxApi`, and task drawer rendering.
+- Bad capability result: inspect `createFlowRouter`, `runCreativeCapability`, `runTavilyResearch`, `runApprovedLandingPageAction`, and chat artifact rendering.
+- Setup cannot finish: inspect `setupService`, `voiceSetupService`, `tavilySetupService`, secure key store calls, and IPC status broadcasts.
+- Connector unavailable: inspect Tavily connector registry state, auth status, remote URL/search depth, keychain status, and health check logic.
 - Renderer mismatch: inspect `global.d.ts`, `preload.ts`, component props/state, and `App.test.tsx`.
 - Persistence issue: inspect sqlite store tests, schema SQL, `persist()` calls, and app `userData` database paths.
+- Fixture/static workflow confusion: run `npm run audit:fixtures` and trace whether the signal is test-only, dev-only, or user-reachable.
 
 ## Verification
 

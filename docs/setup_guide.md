@@ -33,4 +33,4 @@ Voice output is intentionally brief. The shared spoken-response policy returns t
 
 ## Removed Connector Paths
 
-The app no longer ships Web Search, Local Files, Email, Calendar, Google Workspace, generic MCP command launch, or MCP fixture connectors. Keep MiniMax media fixture artifacts for CI/demo fallback only.
+The app no longer ships Web Search, Local Files, Email, Calendar, Google Workspace, generic MCP command launch, or MCP fixture connectors. Keep MiniMax media fixture artifacts for tests/CI only; live product and demo paths should use real providers or show a clear unavailable state.
