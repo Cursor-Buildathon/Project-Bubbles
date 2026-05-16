@@ -7,7 +7,8 @@ Last updated: 2026-05-16
 - Keep MiniMax Token Plan setup stable.
 - Keep direct MiniMax task, TTS, image, and music APIs covered by tests.
 - Keep voice input single-turn and wake-phrase behavior stable.
-- Ship Tavily-only research with comprehensive chat output and short voice-ready status.
+- Keep spoken output concise: replies under 50 normalized characters are read aloud, and longer replies point to the chat panel.
+- Ship Tavily-only research with comprehensive chat output and chat-panel voice prompting for long reports.
 - Preserve follow-up conversation over the latest research report.
 
 ## Verification

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { presentResponse } from './responsePresenter.js';
 
+const chatPanelPrompt = 'Please look in the chat panel for the response.';
+
 describe('presentResponse', () => {
   it('presents research results with sources and uncertainty', () => {
     expect(
@@ -13,9 +15,9 @@ describe('presentResponse', () => {
       })
     ).toEqual({
       text: 'MCP tools connect apps through explicit tool servers.\n\nSources:\n- MCP Docs: https://example.com/mcp\n\nUncertainty: Provider configuration was fixture-backed.',
-      voiceText: 'MCP tools connect apps through explicit tool servers.',
-      captionText: 'MCP tools connect apps through explicit tool servers.',
-      voiceSummarized: false,
+      voiceText: chatPanelPrompt,
+      captionText: chatPanelPrompt,
+      voiceSummarized: true,
       status: 'completed'
     });
   });
@@ -37,7 +39,7 @@ describe('presentResponse', () => {
     });
   });
 
-  it('speaks a short summary for long responses while keeping the full chat text', () => {
+  it('points long responses to the chat panel while keeping the full chat text', () => {
     const summary = [
       'First, sort your tasks by deadline and energy.',
       'Then block focus time for the hardest work.',
@@ -56,16 +58,14 @@ describe('presentResponse', () => {
       })
     ).toEqual({
       text: `${summary}\n\nNext step: Choose the first focus block.`,
-      voiceText:
-        'Short version: First, sort your tasks by deadline and energy. Then block focus time for the hardest work. I put the full details in chat.',
-      captionText:
-        'Short version: First, sort your tasks by deadline and energy. Then block focus time for the hardest work. I put the full details in chat.',
+      voiceText: chatPanelPrompt,
+      captionText: chatPanelPrompt,
       voiceSummarized: true,
       status: 'completed'
     });
   });
 
-  it('uses affect metadata to tune spoken wording without changing chat text', () => {
+  it('preserves voice style metadata without changing the spoken response text', () => {
     expect(
       presentResponse({
         taskType: 'general.plan',
@@ -81,8 +81,8 @@ describe('presentResponse', () => {
       })
     ).toEqual({
       text: 'I found the issue and can help you fix it.',
-      voiceText: 'I hear the frustration. I found the issue and can help you fix it.',
-      captionText: 'I hear the frustration. I found the issue and can help you fix it.',
+      voiceText: 'I found the issue and can help you fix it.',
+      captionText: 'I found the issue and can help you fix it.',
       voiceStyle: 'calm',
       voiceSummarized: false,
       status: 'completed'

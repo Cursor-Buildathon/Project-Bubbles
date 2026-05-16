@@ -1,5 +1,6 @@
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { type VoiceEvent, type VoiceSessionState } from '@bubbles/core';
+import { prepareSpokenResponse } from '@bubbles/core/src/voice/spokenResponsePolicy.js';
 
 interface UseVoiceSessionOptions {
   chatEnabled: boolean;
@@ -104,7 +105,8 @@ export function useVoiceSession({
     }
 
     shouldSpeakNextReplyRef.current = false;
-    speak(latestBubbleText);
+    const spoken = prepareSpokenResponse({ chatText: latestBubbleText, summary: latestBubbleText });
+    speak(spoken.voiceText, latestBubbleText);
   }, [latestBubbleText, sideEffectsEnabled]);
 
   useEffect(() => {
@@ -415,10 +417,10 @@ export function useVoiceSession({
     await onTranscriptRef.current(transcript);
   }
 
-  function speak(text: string) {
+  function speak(text: string, dedupeText = text) {
     const ttsId = 'tts-current';
     currentTtsIdRef.current = ttsId;
-    lastSpokenTextRef.current = text;
+    lastSpokenTextRef.current = dedupeText;
     setVoiceState((current) => createRendererVoiceState({ ...current, status: 'speaking', captionText: text }));
 
     if (window.bubbles?.voice?.speak) {

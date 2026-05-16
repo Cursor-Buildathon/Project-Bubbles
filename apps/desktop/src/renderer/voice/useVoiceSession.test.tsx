@@ -3,6 +3,8 @@ import { vi } from 'vitest';
 import { type VoiceEvent, type VoiceSessionState } from '@bubbles/core';
 import { useVoiceSession } from './useVoiceSession';
 
+const chatPanelPrompt = 'Please look in the chat panel for the response.';
+
 describe('useVoiceSession', () => {
   it('starts the voice session through preload and submits final transcripts to chat', async () => {
     const previousBubbles = window.bubbles;
@@ -162,6 +164,57 @@ describe('useVoiceSession', () => {
     } finally {
       window.bubbles = previousBubbles;
       restoreAudio();
+    }
+  });
+
+  it('asks the user to look in chat instead of speaking long assistant replies', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const longReply = 'I finished the task and put a complete explanation with next steps in the chat panel.';
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      const { rerender } = renderHook(
+        ({ latestBubbleText }) =>
+          useVoiceSession({
+            chatEnabled: true,
+            latestBubbleText,
+            onTranscript: vi.fn()
+          }),
+        { initialProps: { latestBubbleText: '' } }
+      );
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-1', text: 'Hello Bubbles.' },
+          createVoiceState({ status: 'processing', captionText: 'Hello Bubbles.' })
+        );
+      });
+
+      rerender({ latestBubbleText: longReply });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: chatPanelPrompt, ttsId: 'tts-current' }));
+      expect(speak).not.toHaveBeenCalledWith({ text: longReply, ttsId: 'tts-current' });
+    } finally {
+      window.bubbles = previousBubbles;
     }
   });
 

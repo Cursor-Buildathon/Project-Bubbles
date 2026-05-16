@@ -26,6 +26,8 @@ Tests should inject a fake `TavilyMcpClientLike`. Do not restore the removed `mc
 
 Voice input should produce one final English transcript per turn, and English MiniMax TTS should speak one response per turn. Wake phrase mode listens for `Hi Bubbles` and submits the remaining command text.
 
+Voice output should stay short: `prepareSpokenResponse` speaks replies under 50 normalized characters in full and replaces replies at or above 50 characters with `Please look in the chat panel for the response.` Renderer voice playback applies the same policy to assistant message voice text before calling MiniMax TTS, while deduplicating against the original assistant text.
+
 ## Secret Handling
 
 MiniMax, Tavily, Gemini, and OpenAI keys must remain redacted in errors, trace events, task logs, memory, and exported logs.

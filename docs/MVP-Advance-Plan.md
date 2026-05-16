@@ -17,7 +17,7 @@ Bubbles uses direct provider APIs instead of CLI bridges:
 - Tavily searches and extracts source pages.
 - MiniMax synthesizes the comprehensive report.
 - Chat shows the full output.
-- Voice only announces that the output is ready unless the user asks to read it aloud.
+- Voice uses the shared spoken-response policy: short replies are spoken directly, and reports or long follow-up answers say `Please look in the chat panel for the response.`
 - Follow-up questions use the latest report context.
 
 ## Removed Scope

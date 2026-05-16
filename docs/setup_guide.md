@@ -23,11 +23,13 @@ Use the Tavily setup card to save a Tavily API key, then enable `Tavily Research
 
 Research trigger phrases include `do me a research`, `do research`, `search me`, `search for`, `look up`, `investigate`, and `find sources`.
 
-Research output is shown in chat as a comprehensive cited report. Voice playback only says: `Your research output is ready. I put the full report in chat.` Bubbles reads the full report aloud only when the user explicitly asks.
+Research output is shown in chat as a comprehensive cited report. Voice playback follows the global spoken-response policy: replies under 50 normalized characters are spoken in full, while replies at 50 characters or longer say `Please look in the chat panel for the response.` The full report stays in chat instead of being read aloud through TTS.
 
 ## Voice
 
 Voice input uses Gemini STT first, with optional OpenAI fallback through OpenAI audio translations. Both providers are instructed to return English text only. Voice playback uses English MiniMax TTS with English language boost. The wake phrase is `Hi Bubbles`.
+
+Voice output is intentionally brief. The shared spoken-response policy returns the original reply only when it is shorter than 50 normalized characters; longer assistant replies, research reports, and long follow-up answers use the chat-panel prompt for both TTS and captions. The renderer deduplicates against the original assistant text so separate long replies can still trigger their own prompt without replaying the same message.
 
 ## Removed Connector Paths
 

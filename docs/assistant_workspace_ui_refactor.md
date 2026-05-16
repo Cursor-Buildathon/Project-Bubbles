@@ -12,7 +12,7 @@ The workspace should present direct MiniMax readiness, Tavily Research setup, vo
 
 ## Research UX
 
-When research completes, show the full report in chat and use the short voice-ready message. Do not place huge research text into the floating bubble unless the user explicitly asks Bubbles to read it.
+When research completes, show the full report in chat and use the standard chat-panel voice prompt for the floating bubble. Do not place huge research text into the floating bubble or send it to TTS; long replies should say `Please look in the chat panel for the response.`
 
 ## Removed UI Copy
 
