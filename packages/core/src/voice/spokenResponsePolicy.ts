@@ -1,6 +1,6 @@
 import { type AffectTag } from './voiceTypes.js';
 
-const DEFAULT_MAX_CHARACTERS = 50;
+const DEFAULT_MAX_CHARACTERS = 200;
 const CHAT_PANEL_RESPONSE_PROMPT = 'Please look in the chat panel for the response.';
 
 interface PrepareSpokenResponseInput {

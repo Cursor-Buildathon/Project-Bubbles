@@ -15,9 +15,9 @@ describe('presentResponse', () => {
       })
     ).toEqual({
       text: 'MCP tools connect apps through explicit tool servers.\n\nSources:\n- MCP Docs: https://example.com/mcp\n\nUncertainty: Provider configuration was fixture-backed.',
-      voiceText: chatPanelPrompt,
-      captionText: chatPanelPrompt,
-      voiceSummarized: true,
+      voiceText: 'MCP tools connect apps through explicit tool servers.',
+      captionText: 'MCP tools connect apps through explicit tool servers.',
+      voiceSummarized: false,
       status: 'completed'
     });
   });

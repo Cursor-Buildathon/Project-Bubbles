@@ -280,7 +280,11 @@ describe('useVoiceSession', () => {
     const previousBubbles = window.bubbles;
     let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
     const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
-    const longReply = 'I finished the task and put a complete explanation with next steps in the chat panel.';
+    const longReply = [
+      'I finished the task and put a complete explanation with next steps in the chat panel.',
+      'The full write-up includes what changed, what I checked, and the remaining caveats so the spoken response can stay compact.',
+      'Please use the chat panel for the details because this response is intentionally over the TTS character limit.'
+    ].join(' ');
 
     try {
       window.bubbles = {
@@ -578,6 +582,65 @@ describe('useVoiceSession', () => {
 
       await waitFor(() => expect(result.current.voiceState.status).toBe('idle'));
       expect(transcribeAudio).not.toHaveBeenCalled();
+    } finally {
+      window.bubbles = previousBubbles;
+      media.restore();
+    }
+  });
+
+  it('submits the returned STT transcript when no voice final broadcast arrives', async () => {
+    const previousBubbles = window.bubbles;
+    const media = mockMediaCaptureWithRecorders();
+    const onTranscript = vi.fn().mockResolvedValue(undefined);
+    const startSession = vi.fn().mockResolvedValue({
+      event: { type: 'voice.session_started', voiceTurnId: 'voice-stt', traceId: 'trace-stt' },
+      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-stt' })
+    });
+    const transcribeAudio = vi.fn().mockResolvedValue({
+      ok: true,
+      event: { type: 'voice.final', voiceTurnId: 'voice-stt', text: 'Hi, Bubbles.' },
+      provider: 'gemini',
+      state: createVoiceState({ status: 'processing', activeTurnId: 'voice-stt', captionText: 'Hi, Bubbles.' }),
+      transcript: 'Hi, Bubbles.'
+    });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn(() => () => undefined),
+          requestMicrophoneAccess: vi.fn().mockResolvedValue({ ok: true, status: 'granted' }),
+          speak: vi.fn(),
+          startSession,
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn(),
+          transcribeAudio
+        }
+      };
+
+      const { result } = renderHook(() =>
+        useVoiceSession({
+          chatEnabled: true,
+          latestBubbleText: '',
+          onTranscript
+        })
+      );
+
+      await act(async () => {
+        await result.current.startListening();
+      });
+
+      await act(async () => {
+        media.recorders[0]?.emitData(new Blob(['speech'], { type: 'audio/webm' }));
+        media.recorders[0]?.stop();
+      });
+
+      await waitFor(() => expect(onTranscript).toHaveBeenCalledWith('Hi, Bubbles.'));
+      expect(transcribeAudio).toHaveBeenCalledTimes(1);
     } finally {
       window.bubbles = previousBubbles;
       media.restore();

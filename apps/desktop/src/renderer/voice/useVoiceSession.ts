@@ -34,6 +34,7 @@ export function useVoiceSession({
   const captureStartInFlightRef = useRef(false);
   const shouldSpeakNextReplyRef = useRef(false);
   const currentTtsIdRef = useRef<string | undefined>(undefined);
+  const handledFinalTranscriptKeysRef = useRef(new Set<string>());
   const lastSpokenTextRef = useRef('');
   const spokenArrivalMessageIdsRef = useRef(new Set<number>());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -75,6 +76,7 @@ export function useVoiceSession({
     const unsubscribe = window.bubbles?.voice?.onEvent((event, state) => {
       voiceEventReceivedRef.current = true;
 
+      voiceStateRef.current = state;
       setVoiceState(state);
 
       if (!sideEffectsEnabledRef.current) {
@@ -82,7 +84,7 @@ export function useVoiceSession({
       }
 
       if (event.type === 'voice.final' && event.text.trim()) {
-        void handleFinalTranscript(event);
+        void handleFinalTranscriptOnce(event);
       }
     });
 
@@ -336,7 +338,11 @@ export function useVoiceSession({
       });
 
       if (result) {
+        voiceStateRef.current = result.state;
         setVoiceState(result.state);
+        if (result.ok && isVoiceFinal(result.event)) {
+          await handleFinalTranscriptOnce(result.event);
+        }
       } else {
         throw new Error('Voice transcription is unavailable.');
       }
@@ -353,10 +359,22 @@ export function useVoiceSession({
     }
   }
 
+  async function handleFinalTranscriptOnce(event: Extract<VoiceEvent, { type: 'voice.final' }>) {
+    const transcriptKey = `${event.voiceTurnId}:${event.text.trim()}`;
+
+    if (handledFinalTranscriptKeysRef.current.has(transcriptKey)) {
+      return;
+    }
+
+    handledFinalTranscriptKeysRef.current.add(transcriptKey);
+    await handleFinalTranscript(event);
+  }
+
   async function handleFinalTranscript(event: Extract<VoiceEvent, { type: 'voice.final' }>) {
     const normalized = normalizeCommandTranscript(event.text);
+    const isWakeOnlyTranscript = normalized.hadWakePhrase && !normalized.commandText;
 
-    if (normalized.hadWakePhrase && !normalized.commandText) {
+    if (isWakeOnlyTranscript && voiceStateRef.current.mode === 'always-listening') {
       setVoiceState((current) =>
         createRendererVoiceState({
           ...current,
@@ -371,7 +389,7 @@ export function useVoiceSession({
       return;
     }
 
-    const transcript = normalized.commandText || event.text.trim();
+    const transcript = isWakeOnlyTranscript ? event.text.trim() : normalized.commandText || event.text.trim();
 
     if (!transcript) {
       return;

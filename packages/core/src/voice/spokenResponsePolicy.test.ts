@@ -17,8 +17,8 @@ describe('prepareSpokenResponse', () => {
     });
   });
 
-  it('asks the user to look in chat for replies with exactly 50 characters', () => {
-    const exactLimitSummary = '1234567890'.repeat(5);
+  it('asks the user to look in chat for replies with exactly 200 characters', () => {
+    const exactLimitSummary = '1234567890'.repeat(20);
 
     expect(
       prepareSpokenResponse({
@@ -32,8 +32,12 @@ describe('prepareSpokenResponse', () => {
     });
   });
 
-  it('asks the user to look in chat for replies over 50 characters', () => {
-    const longSummary = 'I finished that task and added the full details in the chat panel.';
+  it('asks the user to look in chat for replies over 200 characters', () => {
+    const longSummary = [
+      'I finished that task and added the full details in the chat panel.',
+      'The important part is complete, and I included the verification notes so you can see what changed.',
+      'I also kept the implementation small so the existing voice playback path still receives the same kind of prepared response.'
+    ].join(' ');
 
     expect(
       prepareSpokenResponse({
