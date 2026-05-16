@@ -1,0 +1,364 @@
+{
+  "frames": [
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 0,
+      "path": "frames/idle/idle_01.png"
+    },
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 1,
+      "path": "frames/idle/idle_02.png"
+    },
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 2,
+      "path": "frames/idle/idle_03.png"
+    },
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 3,
+      "path": "frames/idle/idle_04.png"
+    },
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 4,
+      "path": "frames/idle/idle_05.png"
+    },
+    {
+      "state": "idle",
+      "row": 0,
+      "column": 5,
+      "path": "frames/idle/idle_06.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 0,
+      "path": "frames/listening/listening_01.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 1,
+      "path": "frames/listening/listening_02.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 2,
+      "path": "frames/listening/listening_03.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 3,
+      "path": "frames/listening/listening_04.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 4,
+      "path": "frames/listening/listening_05.png"
+    },
+    {
+      "state": "listening",
+      "row": 1,
+      "column": 5,
+      "path": "frames/listening/listening_06.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 0,
+      "path": "frames/thinking/thinking_01.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 1,
+      "path": "frames/thinking/thinking_02.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 2,
+      "path": "frames/thinking/thinking_03.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 3,
+      "path": "frames/thinking/thinking_04.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 4,
+      "path": "frames/thinking/thinking_05.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 5,
+      "path": "frames/thinking/thinking_06.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 6,
+      "path": "frames/thinking/thinking_07.png"
+    },
+    {
+      "state": "thinking",
+      "row": 2,
+      "column": 7,
+      "path": "frames/thinking/thinking_08.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 0,
+      "path": "frames/working/working_01.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 1,
+      "path": "frames/working/working_02.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 2,
+      "path": "frames/working/working_03.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 3,
+      "path": "frames/working/working_04.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 4,
+      "path": "frames/working/working_05.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 5,
+      "path": "frames/working/working_06.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 6,
+      "path": "frames/working/working_07.png"
+    },
+    {
+      "state": "working",
+      "row": 3,
+      "column": 7,
+      "path": "frames/working/working_08.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 0,
+      "path": "frames/waiting_approval/waiting_approval_01.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 1,
+      "path": "frames/waiting_approval/waiting_approval_02.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 2,
+      "path": "frames/waiting_approval/waiting_approval_03.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 3,
+      "path": "frames/waiting_approval/waiting_approval_04.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 4,
+      "path": "frames/waiting_approval/waiting_approval_05.png"
+    },
+    {
+      "state": "waiting_approval",
+      "row": 4,
+      "column": 5,
+      "path": "frames/waiting_approval/waiting_approval_06.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 0,
+      "path": "frames/confused/confused_01.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 1,
+      "path": "frames/confused/confused_02.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 2,
+      "path": "frames/confused/confused_03.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 3,
+      "path": "frames/confused/confused_04.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 4,
+      "path": "frames/confused/confused_05.png"
+    },
+    {
+      "state": "confused",
+      "row": 5,
+      "column": 5,
+      "path": "frames/confused/confused_06.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 0,
+      "path": "frames/concerned/concerned_01.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 1,
+      "path": "frames/concerned/concerned_02.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 2,
+      "path": "frames/concerned/concerned_03.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 3,
+      "path": "frames/concerned/concerned_04.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 4,
+      "path": "frames/concerned/concerned_05.png"
+    },
+    {
+      "state": "concerned",
+      "row": 6,
+      "column": 5,
+      "path": "frames/concerned/concerned_06.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 0,
+      "path": "frames/celebrating/celebrating_01.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 1,
+      "path": "frames/celebrating/celebrating_02.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 2,
+      "path": "frames/celebrating/celebrating_03.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 3,
+      "path": "frames/celebrating/celebrating_04.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 4,
+      "path": "frames/celebrating/celebrating_05.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 5,
+      "path": "frames/celebrating/celebrating_06.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 6,
+      "path": "frames/celebrating/celebrating_07.png"
+    },
+    {
+      "state": "celebrating",
+      "row": 7,
+      "column": 7,
+      "path": "frames/celebrating/celebrating_08.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 0,
+      "path": "frames/sleeping/sleeping_01.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 1,
+      "path": "frames/sleeping/sleeping_02.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 2,
+      "path": "frames/sleeping/sleeping_03.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 3,
+      "path": "frames/sleeping/sleeping_04.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 4,
+      "path": "frames/sleeping/sleeping_05.png"
+    },
+    {
+      "state": "sleeping",
+      "row": 8,
+      "column": 5,
+      "path": "frames/sleeping/sleeping_06.png"
+    }
+  ]
+}

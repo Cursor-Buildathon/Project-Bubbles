@@ -1,83 +1,35 @@
 {
-	"name": "@bubbles/desktop",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"main": "out/main/index.cjs",
-	"scripts": {
-		"dev": "node scripts/dev.mjs dev",
-		"build": "electron-vite build",
-		"package:mac": "pnpm build && electron-builder --mac dmg --config.mac.identity=null",
-		"package:win": "pnpm build && electron-builder --win nsis",
-		"preview": "node scripts/dev.mjs preview",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage",
-		"typecheck": "tsc --noEmit",
-		"rebuild": "electron-rebuild -f -w better-sqlite3"
-	},
-	"dependencies": {
-		"@bubbles/agent-runtime": "workspace:*",
-		"@bubbles/cost-meter": "workspace:*",
-		"@bubbles/memory-core": "workspace:*",
-		"@bubbles/minimax-client": "workspace:*",
-		"@bubbles/permission-guard": "workspace:*",
-		"@bubbles/shared-logger": "workspace:*",
-		"@bubbles/shared-types": "workspace:*",
-		"@bubbles/tool-kit": "workspace:*"
-	},
-	"devDependencies": {
-		"@types/node": "^22.10.0",
-		"@vitejs/plugin-react": "^4.3.4",
-		"@vitest/coverage-v8": "^3.0.5",
-		"electron": "^32.3.3",
-		"electron-builder": "^25.1.8",
-		"electron-rebuild": "^3.2.9",
-		"electron-vite": "^3.1.0",
-		"typescript": "~5.6.3",
-		"vite": "^6.0.11",
-		"vitest": "^3.0.5"
-	},
-	"build": {
-		"appId": "com.bubbles.desktop",
-		"productName": "Bubbles",
-		"directories": {
-			"output": "release",
-			"buildResources": "build"
-		},
-		"files": [
-			"out/**/*",
-			"package.json"
-		],
-		"extraResources": [
-			{
-				"from": "../../assets",
-				"to": "assets"
-			}
-		],
-		"mac": {
-			"target": [
-				"dmg"
-			],
-			"identity": null,
-			"category": "public.app-category.productivity"
-		},
-		"win": {
-			"target": [
-				"nsis"
-			],
-			"signingHashAlgorithms": null,
-			"signAndEditExecutable": false
-		},
-		"nsis": {
-			"oneClick": false,
-			"allowToChangeInstallationDirectory": true
-		},
-		"publish": {
-			"provider": "github",
-			"owner": "bubbles-app",
-			"repo": "bubbles",
-			"releaseType": "release",
-			"publishAutoUpdate": false
-		}
-	}
+  "name": "@bubbles/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "out/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "@bubbles/core": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "pixi.js": "^8.6.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-vite": "^2.3.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
 }

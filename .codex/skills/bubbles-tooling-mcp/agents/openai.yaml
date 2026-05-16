@@ -1,0 +1,14 @@
+interface:
+  display_name: "Bubbles Tooling And MCP"
+  short_description: "Configure Bubbles debug tools and connectors"
+  default_prompt: "Use $bubbles-tooling-mcp to configure or debug Bubbles MVP tooling."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "computer-use"
+      description: "Inspect and operate the Electron app window when runtime behavior matters."
+    - type: "mcp"
+      value: "lazyweb"
+      description: "Find UI references for renderer and workspace design improvements."
+policy:
+  allow_implicit_invocation: true

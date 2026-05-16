@@ -1,0 +1,16 @@
+appId: com.bubbles.mvp
+productName: Bubbles MVP
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: false
+  gatekeeperAssess: false
+asar: true

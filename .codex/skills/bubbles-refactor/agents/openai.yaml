@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bubbles Refactor"
+  short_description: "Refactor Bubbles by layer and contract"
+  default_prompt: "Use $bubbles-refactor to plan and execute this Bubbles MVP refactor."
+policy:
+  allow_implicit_invocation: true

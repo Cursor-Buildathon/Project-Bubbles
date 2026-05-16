@@ -1,49 +1,17 @@
 {
-	"name": "bubbles",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"packageManager": "pnpm@10.33.2",
-	"scripts": {
-		"dev": "pnpm dev:desktop",
-		"dev:desktop": "pnpm --filter @bubbles/desktop dev",
-		"dev:renderer": "pnpm --filter @bubbles/renderer dev",
-		"build": "turbo run build",
-		"package:mac": "pnpm --filter @bubbles/desktop package:mac",
-		"package:win": "pnpm --filter @bubbles/desktop package:win",
-		"test": "node scripts/select-sqlite-binary.mjs && turbo run test",
-		"test:coverage": "turbo run test:coverage --concurrency=1",
-		"lint": "biome check .",
-		"lint:fix": "biome check --write .",
-		"typecheck": "turbo run typecheck",
-		"e2e": "pnpm --filter @bubbles/desktop build && playwright test",
-		"bubbles:doctor": "tsx scripts/doctor.ts",
-		"verify": "tsx scripts/verify.ts",
-		"verify:quick": "pnpm typecheck && pnpm lint && pnpm test",
-		"eval": "tsx scripts/eval-judge.ts",
-		"eval:ci": "cross-env BUBBLES_TEST_MODE=1 tsx scripts/eval-judge.ts",
-		"seed-presets": "tsx scripts/seed-presets.ts",
-		"postinstall": "node ./node_modules/electron/install.js && node scripts/select-sqlite-binary.mjs"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.0.0",
-		"@playwright/test": "^1.50.0",
-		"@types/node": "^22.10.0",
-		"cross-env": "^10.1.0",
-		"electron": "^32.3.3",
-		"playwright": "^1.50.0",
-		"tsx": "^4.19.2",
-		"turbo": "^2.3.3",
-		"typescript": "~5.6.3"
-	},
-	"engines": {
-		"node": ">=22"
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"better-sqlite3",
-			"electron",
-			"speaker"
-		]
-	}
+  "name": "bubbles-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "corepack pnpm --filter @bubbles/desktop dev",
+    "build": "corepack pnpm --filter @bubbles/desktop build",
+    "mcp:search-fixture": "node tools/mcp/search-fixture.mjs",
+    "test": "corepack pnpm -r test",
+    "test:core": "corepack pnpm --filter @bubbles/core test",
+    "test:desktop": "corepack pnpm --filter @bubbles/desktop test",
+    "typecheck": "corepack pnpm -r typecheck",
+    "typecheck:core": "corepack pnpm --filter @bubbles/core typecheck",
+    "typecheck:desktop": "corepack pnpm --filter @bubbles/desktop typecheck"
+  }
 }
