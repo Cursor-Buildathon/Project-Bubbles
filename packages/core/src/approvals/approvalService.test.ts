@@ -46,7 +46,7 @@ describe('createApprovalService', () => {
 
     const denied = await service.create({
       taskId: 'task-2',
-      agentId: 'coding-agent',
+      agentId: 'general-assistant',
       actionType: 'file_write',
       title: 'Write file',
       explanation: 'Write a project file.',
@@ -54,7 +54,7 @@ describe('createApprovalService', () => {
     });
     const cancelled = await service.create({
       taskId: 'task-3',
-      agentId: 'coding-agent',
+      agentId: 'general-assistant',
       actionType: 'shell_command',
       title: 'Run command',
       explanation: 'Run a shell command.',

@@ -34,8 +34,8 @@ describe('createAgentRegistry', () => {
 
     await registry.create({
       profile: {
-        id: 'coding-agent',
-        name: 'Coding Bubbles',
+        id: 'demo-agent',
+        name: 'Demo Bubbles',
         role: 'Coding assistant',
         badgeName: 'Code',
         voiceStyle: 'Precise',
@@ -43,20 +43,23 @@ describe('createAgentRegistry', () => {
         memoryRules: ['Use project context.'],
         safetyRules: ['Ask before file writes.'],
         responseStyle: 'Concise technical summary',
-        skillsPath: 'agents/coding-agent/skills.md',
+        skillsPath: 'agents/demo-agent/skills.md',
         createdAt: '2026-05-14T01:00:00.000Z',
         updatedAt: '2026-05-14T01:00:00.000Z'
       },
+      agentMarkdown: '# Coding Bubbles\n\nAI recommended coding profile.',
       skillsMarkdown: '# Coding skills\n\nHelp with project code.'
-    });
+    }, { activate: false });
 
-    expect((await registry.activate('coding-agent')).id).toBe('coding-agent');
+    expect((await registry.getActive()).id).toBe('general-assistant');
+    expect((await registry.activate('demo-agent')).id).toBe('demo-agent');
     expect((await registry.getActive()).badgeName).toBe('Code');
-    expect(await readFile(join(agentsRoot, 'coding-agent', 'skills.md'), 'utf8')).toContain('project code');
+    expect(await readFile(join(agentsRoot, 'demo-agent', 'agent.md'), 'utf8')).toContain('AI recommended coding profile');
+    expect(await readFile(join(agentsRoot, 'demo-agent', 'skills.md'), 'utf8')).toContain('project code');
 
-    await registry.archive('coding-agent');
+    await registry.archive('demo-agent');
     expect((await registry.list()).map((agent) => agent.id)).toEqual(['general-assistant']);
-    expect(JSON.parse(await readFile(join(agentsRoot, 'coding-agent', 'agent.json'), 'utf8')).archivedAt).toBe(
+    expect(JSON.parse(await readFile(join(agentsRoot, 'demo-agent', 'agent.json'), 'utf8')).archivedAt).toBe(
       '2026-05-14T01:00:00.000Z'
     );
   });

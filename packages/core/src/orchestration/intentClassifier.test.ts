@@ -4,21 +4,22 @@ import { classifyIntent } from './intentClassifier.js';
 describe('classifyIntent', () => {
   it.each([
     ['Help me plan my Bubbles MVP', 'general.plan', 'general-assistant'],
-    ['Research the best way to connect MCP tools', 'research.web', 'research-agent'],
-    ['do me a research on MiniMax Token Plans', 'research.web', 'research-agent'],
-    ['search me Tavily MCP setup', 'research.web', 'research-agent'],
-    ['Build this feature in my project', 'coding.project', 'coding-agent'],
+    ['Research the best way to connect MCP tools', 'research.web', 'general-assistant'],
+    ['do me a research on MiniMax Token Plans', 'research.web', 'general-assistant'],
+    ['search me Tavily MCP setup', 'research.web', 'general-assistant'],
+    ['Build this feature in my project', 'coding.project', 'general-assistant'],
     ['Create a coding agent for this project', 'agent.create', 'general-assistant'],
-    ['Generate a friendly voice intro', 'creative.minimax', 'creative-minimax-helper'],
-    ['Generate an image of a neon desk setup', 'creative.image', 'creative-minimax-helper'],
-    ['Draw a picture of a glass greenhouse on Mars', 'creative.image', 'creative-minimax-helper'],
-    ['Render an illustration of a tiny robot florist', 'creative.image', 'creative-minimax-helper'],
-    ['Create a poster for a jazz night', 'creative.image', 'creative-minimax-helper'],
-    ['Make a short song for a product launch', 'creative.music', 'creative-minimax-helper'],
-    ['create a guitar music', 'creative.music', 'creative-minimax-helper'],
-    ['Generate a video of waves rolling over black sand', 'creative.video', 'creative-minimax-helper'],
-    ['Render a short film about a lantern in the rain', 'creative.video', 'creative-minimax-helper'],
-    ['Build a landing page for my bakery', 'coding.landing_page', 'coding-agent']
+    ['Create an agent skill for invoice analysis', 'agent.create', 'general-assistant'],
+    ['Generate a friendly voice intro', 'creative.minimax', 'general-assistant'],
+    ['Generate an image of a neon desk setup', 'creative.image', 'general-assistant'],
+    ['Draw a picture of a glass greenhouse on Mars', 'creative.image', 'general-assistant'],
+    ['Render an illustration of a tiny robot florist', 'creative.image', 'general-assistant'],
+    ['Create a poster for a jazz night', 'creative.image', 'general-assistant'],
+    ['Make a short song for a product launch', 'creative.music', 'general-assistant'],
+    ['create a guitar music', 'creative.music', 'general-assistant'],
+    ['Generate a video of waves rolling over black sand', 'creative.video', 'general-assistant'],
+    ['Render a short film about a lantern in the rain', 'creative.video', 'general-assistant'],
+    ['Build a landing page for my bakery', 'coding.landing_page', 'general-assistant']
   ])('classifies "%s"', (userText, taskType, agentId) => {
     expect(classifyIntent(userText)).toMatchObject({ taskType, suggestedAgentId: agentId });
   });

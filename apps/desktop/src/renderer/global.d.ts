@@ -167,6 +167,7 @@ interface AgentProfile {
 
 interface AgentBirthDraft {
   profile: AgentProfile;
+  agentMarkdown: string;
   skillsMarkdown: string;
 }
 

@@ -66,6 +66,7 @@ export function AgentBirthPreview({ onCreate, onPreview }: AgentBirthPreviewProp
           <strong>{draft.profile.name}</strong>
           <p>{draft.profile.role}</p>
           <code>{draft.profile.skillsPath}</code>
+          <pre>{draft.agentMarkdown}</pre>
           <pre>{draft.skillsMarkdown}</pre>
           <button type="button" onClick={handleCreate}>
             Create approved agent

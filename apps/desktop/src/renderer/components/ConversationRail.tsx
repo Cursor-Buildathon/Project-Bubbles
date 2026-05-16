@@ -1,22 +1,17 @@
-import { type AgentBirthDraft, type AgentProfile } from '@bubbles/core';
+import { type AgentProfile } from '@bubbles/core';
 import { AgentSwitcher } from './AgentSwitcher';
 import { ConversationHistory } from './ConversationHistory';
-import { AgentBirthPreview } from '../screens/AgentBirthPreview';
 
 interface ConversationRailProps {
   activeAgent: AgentProfile | null;
   availableAgents: AgentProfile[];
   onActivateAgent: (agentId: string) => void;
-  onCreateAgent: (draft: AgentBirthDraft) => Promise<AgentProfile>;
-  onPreviewAgentBirth: (request: string) => Promise<AgentBirthDraft>;
 }
 
 export function ConversationRail({
   activeAgent,
   availableAgents,
-  onActivateAgent,
-  onCreateAgent,
-  onPreviewAgentBirth
+  onActivateAgent
 }: ConversationRailProps) {
   return (
     <aside className="conversation-rail" data-testid="conversation-rail" aria-label="Conversation and agent rail">
@@ -26,7 +21,6 @@ export function ConversationRail({
         agents={availableAgents}
         onActivate={onActivateAgent}
       />
-      <AgentBirthPreview onCreate={onCreateAgent} onPreview={onPreviewAgentBirth} />
     </aside>
   );
 }

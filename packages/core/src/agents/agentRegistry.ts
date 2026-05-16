@@ -12,7 +12,7 @@ interface AgentRegistryOptions {
 export interface AgentRegistry {
   activate: (agentId: string) => Promise<AgentProfile>;
   archive: (agentId: string) => Promise<AgentProfile>;
-  create: (draft: AgentBirthDraft) => Promise<AgentProfile>;
+  create: (draft: AgentBirthDraft, options?: { activate?: boolean }) => Promise<AgentProfile>;
   getActive: () => Promise<AgentProfile>;
   initialize: () => Promise<void>;
   list: () => Promise<AgentProfile[]>;
@@ -51,13 +51,16 @@ export function createAgentRegistry({
     return validateAgentProfile(JSON.parse(raw));
   }
 
-  async function create(draft: AgentBirthDraft) {
+  async function create(draft: AgentBirthDraft, { activate = true }: { activate?: boolean } = {}) {
     const profile = validateAgentProfile(draft.profile);
     const agentDir = join(agentsRoot, profile.id);
     await mkdir(agentDir, { recursive: true });
     await writeFile(join(agentDir, 'agent.json'), `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
+    await writeFile(join(agentDir, 'agent.md'), draft.agentMarkdown.trimEnd() + '\n', 'utf8');
     await writeFile(join(agentDir, 'skills.md'), draft.skillsMarkdown.trimEnd() + '\n', 'utf8');
-    activeAgentId = profile.id;
+    if (activate) {
+      activeAgentId = profile.id;
+    }
     return profile;
   }
 

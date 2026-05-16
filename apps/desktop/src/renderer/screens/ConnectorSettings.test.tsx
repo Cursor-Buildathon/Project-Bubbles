@@ -28,7 +28,7 @@ describe('ConnectorSettings', () => {
     expect(screen.getByText('Tavily live web research is ready.')).toBeInTheDocument();
     expect(screen.getByText('ready')).toBeInTheDocument();
     expect(screen.getByText('healthy')).toBeInTheDocument();
-    expect(screen.getByText('research-agent')).toBeInTheDocument();
+    expect(screen.getByText('general-assistant')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check Tavily Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Disconnect Tavily Research' }));
@@ -55,7 +55,7 @@ describe('ConnectorSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enable Tavily Research' }));
 
     expect(onUpdate).toHaveBeenCalledWith('tavily-research', {
-      allowedAgents: ['research-agent'],
+      allowedAgents: ['general-assistant'],
       enabled: true,
       launchConfig: {
         maxResults: 8,
@@ -77,7 +77,7 @@ function createConnector(overrides: Partial<ConnectorConfig> = {}): ConnectorCon
     mode: 'real',
     authStatus: 'not_configured',
     healthStatus: 'unknown',
-    allowedAgents: ['research-agent'],
+    allowedAgents: ['general-assistant'],
     requiredApproval: 'none',
     launchConfig: {
       maxResults: 8,

@@ -36,7 +36,7 @@ describe('Bubbles floating avatar shell', () => {
               mode: 'real',
               authStatus: 'ready',
               healthStatus: 'healthy',
-              allowedAgents: ['research-agent'],
+              allowedAgents: ['general-assistant'],
               requiredApproval: 'none',
               launchConfig: { maxResults: 8, remoteUrl: 'https://mcp.tavily.com/mcp/', searchDepth: 'advanced' },
               updatedAt: '2026-05-14T10:00:00.000Z'
@@ -104,7 +104,7 @@ describe('Bubbles floating avatar shell', () => {
               mode: 'real',
               authStatus: 'needs_auth',
               healthStatus: 'unhealthy',
-              allowedAgents: ['research-agent'],
+              allowedAgents: ['general-assistant'],
               requiredApproval: 'none',
               launchConfig: { maxResults: 8, remoteUrl: 'https://mcp.tavily.com/mcp/', searchDepth: 'advanced' },
               lastError: 'Tavily key is missing',
@@ -177,6 +177,7 @@ describe('Bubbles floating avatar shell', () => {
     expect(screen.getByTestId('assistant-panel')).toBeInTheDocument();
     expect(screen.getByTestId('conversation-history')).toBeInTheDocument();
     expect(screen.getByTestId('active-chat')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-birth')).not.toBeInTheDocument();
     expect(screen.getByTestId('task-drawer')).toBeInTheDocument();
     expect(screen.getByTestId('approval-panel')).toBeInTheDocument();
     expect(screen.getByText('No pending approvals.')).toBeInTheDocument();
@@ -520,6 +521,55 @@ describe('Bubbles floating avatar shell', () => {
 
       await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('Summarize Phase 3'));
       expect(taskStart).not.toHaveBeenCalled();
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it('shows a chat error when the shared message path rejects', async () => {
+    const previousBubbles = window.bubbles;
+    const sendMessage = vi.fn().mockRejectedValue(new Error('Agent creation failed'));
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = {
+        closePanel: vi.fn().mockResolvedValue({ isOpen: false }),
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [],
+          taskEvents: []
+        }),
+        moveWindowBy: vi.fn().mockResolvedValue(undefined),
+        onPanelStateChange: vi.fn(() => () => undefined),
+        onStateChange: vi.fn(() => () => undefined),
+        platform: 'darwin',
+        phase: 'phase-3',
+        sendMessage,
+        setAvatarState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [],
+          taskEvents: []
+        }),
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' })),
+        tasks: {
+          cancel: vi.fn().mockResolvedValue(false),
+          getEvents: vi.fn().mockResolvedValue([]),
+          onEvent: vi.fn(() => () => undefined),
+          start: vi.fn()
+        },
+        togglePanel: vi.fn().mockResolvedValue({ isOpen: true })
+      };
+
+      render(<App />);
+
+      fireEvent.change(await screen.findByLabelText('Message Bubbles'), { target: { value: 'create a QA agent' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+      expect(await screen.findByText('create a QA agent')).toBeInTheDocument();
+      expect(await screen.findByText('I could not start that request: Agent creation failed')).toBeInTheDocument();
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;

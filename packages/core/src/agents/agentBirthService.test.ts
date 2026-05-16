@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentBirthService } from './agentBirthService.js';
+import { createAgentBirthService, createRecommendedAgentBirthDraft } from './agentBirthService.js';
 
 describe('createAgentBirthService', () => {
   it('returns a safe agent draft from MiniMax JSON', async () => {
@@ -19,6 +19,7 @@ describe('createAgentBirthService', () => {
           createdAt: '2026-05-14T00:00:00.000Z',
           updatedAt: '2026-05-14T00:00:00.000Z'
         },
+        agentMarkdown: '# Research Helper\n\nAI recommended profile.',
         skillsMarkdown: '# Research Helper\n\nFind and summarize sources.'
       }),
       now: () => '2026-05-14T02:00:00.000Z'
@@ -29,6 +30,7 @@ describe('createAgentBirthService', () => {
         id: 'research-helper',
         skillsPath: 'agents/research-helper/skills.md'
       },
+      agentMarkdown: expect.stringContaining('AI recommended profile'),
       skillsMarkdown: expect.stringContaining('Research Helper')
     });
   });
@@ -51,6 +53,7 @@ describe('createAgentBirthService', () => {
           updatedAt: '2026-05-14T00:00:00.000Z',
           color: 'blue'
         },
+        agentMarkdown: '# Visual Agent\n\nUse a blue costume.',
         skillsMarkdown: '# Visual Agent\n\nChange the sprite costume.'
       })
     });
@@ -71,6 +74,7 @@ describe('createAgentBirthService', () => {
           safetyRules: 'Ask before changing files.',
           responseStyle: 'Checklist-driven QA notes'
         },
+        agentMarkdown: '# QA Test Agent\n\nRecommended QA profile.',
         skillsMarkdown: '# QA Test Agent\n\nRun manual QA checklists.'
       }),
       now: () => '2026-05-14T02:00:00.000Z'
@@ -95,6 +99,7 @@ describe('createAgentBirthService', () => {
           memoryRules: ['Remember repeated QA findings.'],
           safetyRules: ['Ask before changing files.']
         },
+        agentMarkdown: '',
         skillsMarkdown: ''
       }),
       now: () => '2026-05-14T02:00:00.000Z'
@@ -110,7 +115,32 @@ describe('createAgentBirthService', () => {
         responseStyle: 'Concise, structured responses',
         skillsPath: 'agents/qa-agent/skills.md'
       },
+      agentMarkdown: expect.stringContaining('# QA Agent'),
       skillsMarkdown: expect.stringContaining('# QA Agent')
+    });
+  });
+
+  it('creates a safe recommended draft without MiniMax for demo fallback', () => {
+    const draft = createRecommendedAgentBirthDraft('Create a QA agent', '2026-05-14T02:00:00.000Z');
+
+    expect(draft).toMatchObject({
+      profile: {
+        id: 'qa-agent',
+        name: 'QA Agent',
+        skillsPath: 'agents/qa-agent/skills.md'
+      },
+      agentMarkdown: expect.stringContaining('## Recommended Profile'),
+      skillsMarkdown: expect.stringContaining('## Response Pattern')
+    });
+  });
+
+  it('preserves short custom agent descriptors in fallback drafts', () => {
+    const draft = createRecommendedAgentBirthDraft('Create a AQ agent', '2026-05-14T02:00:00.000Z');
+
+    expect(draft.profile).toMatchObject({
+      id: 'aq-agent',
+      name: 'AQ Agent',
+      badgeName: 'AQ'
     });
   });
 });

@@ -20,6 +20,7 @@ describe('AgentBirthPreview', () => {
         createdAt: '2026-05-14T00:00:00.000Z',
         updatedAt: '2026-05-14T00:00:00.000Z'
       },
+      agentMarkdown: '# Research Helper\n\nAI recommended profile.',
       skillsMarkdown: '# Research Helper'
     };
     const onPreview = vi.fn().mockResolvedValue(draft);
@@ -31,6 +32,7 @@ describe('AgentBirthPreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview agent' }));
 
     expect(await screen.findByText('Research Helper')).toBeInTheDocument();
+    expect(screen.getByText(/AI recommended profile/)).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create approved agent' }));

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerApprovalIpc } from './approvalIpc.js';
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,10 @@ vi.mock('electron', () => ({
 }));
 
 describe('registerApprovalIpc', () => {
+  beforeEach(() => {
+    mocks.handle.mockClear();
+  });
+
   it('returns approved state before running slow approval follow-up work', async () => {
     const approval = {
       id: 'approval-1',
@@ -40,6 +44,34 @@ describe('registerApprovalIpc', () => {
     await expect(approveHandler({}, 'approval-1')).resolves.toEqual([approval]);
     expect(onApprovalResolved).toHaveBeenCalledWith(approval);
     resolveFollowUp?.();
+  });
+
+  it('runs follow-up work for denied and cancelled approvals', async () => {
+    const deniedApproval = {
+      id: 'approval-denied',
+      status: 'denied'
+    };
+    const cancelledApproval = {
+      id: 'approval-cancelled',
+      status: 'cancelled'
+    };
+    const approvalService = {
+      approve: vi.fn(),
+      cancel: vi.fn().mockResolvedValue(cancelledApproval),
+      create: vi.fn(),
+      deny: vi.fn().mockResolvedValue(deniedApproval),
+      get: vi.fn(),
+      list: vi.fn().mockResolvedValue([]),
+      requireApproved: vi.fn()
+    };
+    const onApprovalResolved = vi.fn();
+
+    registerApprovalIpc({ approvalService, onApprovalResolved });
+
+    await expect(ipcHandler('approvals:deny')({}, 'approval-denied')).resolves.toEqual([]);
+    await expect(ipcHandler('approvals:cancel')({}, 'approval-cancelled')).resolves.toEqual([]);
+    expect(onApprovalResolved).toHaveBeenCalledWith(deniedApproval);
+    expect(onApprovalResolved).toHaveBeenCalledWith(cancelledApproval);
   });
 });
 

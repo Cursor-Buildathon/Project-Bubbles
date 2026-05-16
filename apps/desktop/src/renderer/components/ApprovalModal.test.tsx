@@ -57,7 +57,7 @@ describe('ApprovalModal', () => {
           {
             id: 'approval-1',
             taskId: 'task-1',
-            agentId: 'coding-agent',
+            agentId: 'general-assistant',
             actionType: 'shell_command',
             risk: 'high',
             title: 'Generate landing page',

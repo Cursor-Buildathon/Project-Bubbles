@@ -12,15 +12,15 @@ describe('AgentSwitcher', () => {
         activeAgentId="general-assistant"
         agents={[
           createAgent({ id: 'general-assistant', name: 'Bubbles', badgeName: 'Bubbles' }),
-          createAgent({ id: 'coding-agent', name: 'Coding Bubbles', badgeName: 'Code' })
+          createAgent({ id: 'demo-agent', name: 'Demo Bubbles', badgeName: 'Demo' })
         ]}
         onActivate={onActivate}
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Activate Coding Bubbles' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Activate Coding Bubbles' }));
-    expect(onActivate).toHaveBeenCalledWith('coding-agent');
+    expect(screen.getByRole('button', { name: 'Activate Demo Bubbles' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Demo Bubbles' }));
+    expect(onActivate).toHaveBeenCalledWith('demo-agent');
   });
 });
 

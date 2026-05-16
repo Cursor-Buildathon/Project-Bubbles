@@ -81,6 +81,7 @@ export interface AgentProfile {
 
 export interface AgentBirthDraft {
   profile: AgentProfile;
+  agentMarkdown: string;
   skillsMarkdown: string;
 }
 

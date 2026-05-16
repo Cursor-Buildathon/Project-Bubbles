@@ -1,7 +1,6 @@
 import { FormEvent, PointerEvent, useRef, useState } from 'react';
 import { BookOpenText } from 'lucide-react';
 import {
-  type AgentBirthDraft,
   type AgentProfile,
   type ApprovalRequest,
   type ConnectorConfig,
@@ -42,10 +41,8 @@ interface AssistantPanelProps {
   onConnectorHealthCheck: (id: string) => void;
   onConnectorUpdate: (id: string, input: Partial<ConnectorConfig>) => void;
   onClose: () => void;
-  onCreateAgent: (draft: AgentBirthDraft) => Promise<AgentProfile>;
   onDenyApproval: (id: string) => Promise<void> | void;
   onDraftChange: (value: string) => void;
-  onPreviewAgentBirth: (request: string) => Promise<AgentBirthDraft>;
   onSetAvatarState: (state: AvatarState) => void;
   onSetupStatusChange: (status: SetupStatus) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -79,10 +76,8 @@ export function AssistantPanel({
   onConnectorHealthCheck,
   onConnectorUpdate,
   onClose,
-  onCreateAgent,
   onDenyApproval,
   onDraftChange,
-  onPreviewAgentBirth,
   onSetAvatarState,
   onSetupStatusChange,
   onSubmit,
@@ -166,8 +161,6 @@ export function AssistantPanel({
           activeAgent={activeAgent}
           availableAgents={availableAgents}
           onActivateAgent={onActivateAgent}
-          onCreateAgent={onCreateAgent}
-          onPreviewAgentBirth={onPreviewAgentBirth}
         />
 
         <main className="workspace-main" aria-label="Chat and task workspace">

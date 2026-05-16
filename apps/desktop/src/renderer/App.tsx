@@ -1,6 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  type AgentBirthDraft,
   type AgentProfile,
   type ApprovalRequest,
   type ConnectorConfig,
@@ -101,8 +100,25 @@ export function App() {
       }
 
       if (window.bubbles?.sendMessage) {
-        const state = await window.bubbles.sendMessage(trimmedText);
-        setAppState(normalizeAppState(state));
+        try {
+          const state = await window.bubbles.sendMessage(trimmedText);
+          setAppState(normalizeAppState(state));
+        } catch (error) {
+          const nextId = Date.now();
+          setAppState((currentState) => ({
+            ...currentState,
+            avatarState: 'concerned',
+            messages: [
+              ...currentState.messages,
+              { id: nextId, author: 'user', text: trimmedText },
+              {
+                id: nextId + 1,
+                author: 'bubbles',
+                text: `I could not start that request: ${error instanceof Error ? error.message : String(error)}`
+              }
+            ]
+          }));
+        }
       } else if (window.bubbles?.tasks?.start) {
         await window.bubbles.tasks.start(trimmedText);
       } else {
@@ -226,22 +242,6 @@ export function App() {
     void window.bubbles?.agents?.activate(agentId).then((state) => setAppState(normalizeAppState(state)));
   }
 
-  function handlePreviewAgentBirth(request: string) {
-    return window.bubbles?.agents?.previewBirth(request) ?? Promise.reject(new Error('Agent birth is unavailable.'));
-  }
-
-  function handleCreateAgent(draft: AgentBirthDraft) {
-    return (
-      window.bubbles?.agents?.createFromPreview(draft).then(async (agent) => {
-        const state = await window.bubbles?.getState();
-        if (state) {
-          setAppState(normalizeAppState(state));
-        }
-        return agent;
-      }) ?? Promise.reject(new Error('Agent creation is unavailable.'))
-    );
-  }
-
   function handleClearMemory() {
     void window.bubbles?.memory?.clear().then((state) => setAppState(normalizeAppState(state)));
   }
@@ -306,10 +306,8 @@ export function App() {
           onConnectorHealthCheck={handleConnectorHealthCheck}
           onConnectorUpdate={handleConnectorUpdate}
           onClose={handleClosePanel}
-          onCreateAgent={handleCreateAgent}
           onDenyApproval={handleDenyApproval}
           onDraftChange={setDraft}
-          onPreviewAgentBirth={handlePreviewAgentBirth}
           onSetAvatarState={setSharedAvatarState}
           onSetupStatusChange={setSetupStatus}
           onSubmit={handleSubmit}
@@ -353,10 +351,8 @@ export function App() {
           onConnectorHealthCheck={handleConnectorHealthCheck}
           onConnectorUpdate={handleConnectorUpdate}
           onClose={handleClosePanel}
-          onCreateAgent={handleCreateAgent}
           onDenyApproval={handleDenyApproval}
           onDraftChange={setDraft}
-          onPreviewAgentBirth={handlePreviewAgentBirth}
           onSetAvatarState={setSharedAvatarState}
           onSetupStatusChange={setSetupStatus}
           onSubmit={handleSubmit}

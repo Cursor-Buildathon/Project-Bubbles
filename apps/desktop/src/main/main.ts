@@ -17,6 +17,9 @@ import {
   createMiniMaxCreativeService,
   createMiniMaxLandingPageCodeGenerator,
   createMiniMaxTtsService,
+  createRecommendedAgentBirthDraft,
+  createAgentBirthTaskEvents,
+  createAgentBirthDraftingTaskEvents,
   classifyIntent,
   createResearchService,
   createStaticSiteServer,
@@ -29,6 +32,7 @@ import {
   createSecureKeyStore,
   createSqliteMemoryStore,
   createSqliteTimelineStore,
+  createTaskEvent,
   createTraceEvent,
   generateMiniMaxJson,
   generateMiniMaxText,
@@ -107,8 +111,10 @@ let latestResearchReport: ResearchReport | undefined;
 let taskLogDir = '';
 let artifactRoot = '';
 const pendingAgentDrafts = new Map<string, AgentBirthDraft>();
+let pendingAgentSwitch: { agentId: string; name: string } | undefined;
 const pendingLandingPageActions = new Map<string, { changeRequest?: string; request: string }>();
 const staticSiteServers: Array<{ stop: () => void }> = [];
+const agentCreatedSwitchPrompt = 'Agent Created, Should I switch to new agent';
 let activeLandingPageSession:
   | {
       files: LandingPageFile[];
@@ -499,6 +505,7 @@ function registerWindowIpc() {
       explanation: 'Bubbles needs approval before writing new agent files.',
       preview: {
         agent: draft.profile,
+        agentMarkdown: draft.agentMarkdown,
         skillsMarkdown: draft.skillsMarkdown
       }
     });
@@ -519,10 +526,10 @@ function registerWindowIpc() {
   });
 
   ipcMain.handle('agents:create-approved-draft', async (_event, draft: AgentBirthDraft) => {
-    const agent = await agentRegistry?.create(draft);
+    const agent = await agentRegistry?.create(draft, { activate: false });
 
     if (agent) {
-      appState.activeAgent = agent;
+      pendingAgentSwitch = { agentId: agent.id, name: agent.name };
       await timelineStore?.append({
         type: 'agent_created',
         title: 'Agent created',
@@ -530,6 +537,16 @@ function registerWindowIpc() {
         agentId: agent.id,
         metadata: { skillsPath: agent.skillsPath }
       });
+      appState.messages = [
+        ...appState.messages,
+        {
+          id: Date.now() + 1,
+          author: 'bubbles',
+          speakOnArrival: true,
+          text: agentCreatedSwitchPrompt,
+          voiceText: agentCreatedSwitchPrompt
+        }
+      ];
     }
 
     await hydrateAgentState();
@@ -963,6 +980,10 @@ async function routeCapabilityFlow(userText: string) {
   await hydrateApprovalState();
   await hydrateConnectorState();
 
+  if (await handlePendingAgentSwitch(userText)) {
+    return true;
+  }
+
   if (latestResearchReport && isReadResearchPrompt(userText)) {
     appState.messages = [
       ...appState.messages,
@@ -1025,7 +1046,7 @@ async function routeCapabilityFlow(userText: string) {
 
     const approval = await approvalService.create({
       taskId: `task-landing-${Date.now()}`,
-      agentId: 'coding-agent',
+      agentId: 'general-assistant',
       actionType: 'shell_command',
       title: 'Generate landing page',
       explanation: 'Bubbles needs approval before updating the downloaded page, running checks, and reopening the local preview.',
@@ -1054,6 +1075,12 @@ async function routeCapabilityFlow(userText: string) {
     return true;
   }
 
+  const routeIntent = classifyIntent(userText);
+
+  if (routeIntent.taskType === 'agent.create') {
+    return createAgentBirthApprovalFromRequest(userText);
+  }
+
   const router = createFlowRouter({
     creative: {
       run: (request) => runCreativeCapability(request)
@@ -1071,7 +1098,6 @@ async function routeCapabilityFlow(userText: string) {
       run: (query) => runTavilyResearch(query)
     }
   });
-  const routeIntent = classifyIntent(userText);
   const mediaKind = mediaKindForTask(routeIntent.taskType);
   const taskStartedAt = Date.now();
   const workingMessageId = mediaKind ? taskStartedAt + 1 : undefined;
@@ -1190,6 +1216,220 @@ async function routeCapabilityFlow(userText: string) {
   return true;
 }
 
+async function createAgentBirthApprovalFromRequest(userText: string) {
+  const taskId = `task-agent-${Date.now()}`;
+  const startedAt = Date.now();
+
+  appState.activeTaskId = taskId;
+  for (const event of createAgentBirthDraftingTaskEvents({ taskId, userText })) {
+    appendCapabilityTaskEvent(event, 'thinking');
+  }
+  appState.messages = [
+    ...appState.messages,
+    { id: startedAt, author: 'user', text: userText },
+    {
+      id: startedAt + 1,
+      author: 'bubbles',
+      text: "I'm drafting the agent files now."
+    }
+  ];
+  appState.avatarState = 'thinking';
+  broadcastAppState();
+
+  if (!approvalService) {
+    appState.activeTaskId = null;
+    appendCapabilityTaskEvent(
+      createTaskEvent(taskId, 'task.error', {
+        errorMessage: 'Agent creation approvals are not ready yet.',
+        taskType: 'agent.create'
+      }),
+      'concerned'
+    );
+    appState.messages = [
+      ...appState.messages,
+      {
+        id: Date.now(),
+        author: 'bubbles',
+        text: 'Agent creation approvals are not ready yet.'
+      }
+    ];
+    appState.avatarState = 'concerned';
+    broadcastAppState();
+    return true;
+  }
+
+  const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
+
+  if (!apiKey) {
+    appState.activeTaskId = null;
+    appendCapabilityTaskEvent(
+      createTaskEvent(taskId, 'task.error', {
+        errorMessage: 'MiniMax Token Plan key is required before agent birth.',
+        taskType: 'agent.create'
+      }),
+      'concerned'
+    );
+    appState.messages = [
+      ...appState.messages,
+      {
+        id: Date.now(),
+        author: 'bubbles',
+        text: 'MiniMax Token Plan key is required before agent birth.'
+      }
+    ];
+    appState.avatarState = 'concerned';
+    broadcastAppState();
+    return true;
+  }
+
+  const service = createAgentBirthService({
+    generateJson: (prompt) => generateMiniMaxJson(apiKey, prompt, { timeoutMs: agentBirthDraftTimeoutMs() })
+  });
+  try {
+    let draft: AgentBirthDraft;
+
+    try {
+      draft = await service.preview(userText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (/visual customization/i.test(message)) {
+        throw error;
+      }
+
+      draft = createRecommendedAgentBirthDraft(userText);
+      appendCapabilityTaskEvent(
+        createTaskEvent(taskId, 'task.status', {
+          status: 'running',
+          text: 'MiniMax draft was unavailable, so I prepared safe recommended demo agent files.'
+        }),
+        'thinking'
+      );
+    }
+
+    const approval = await approvalService.create({
+      taskId,
+      agentId: appState.activeAgent?.id ?? 'general-assistant',
+      actionType: 'agent_file_create',
+      title: `Create ${draft.profile.name}`,
+      explanation: 'Bubbles needs approval before writing new agent files.',
+      preview: {
+        agent: draft.profile,
+        agentMarkdown: draft.agentMarkdown,
+        skillsMarkdown: draft.skillsMarkdown
+      }
+    });
+    pendingAgentDrafts.set(approval.id, draft);
+    appState.activeTaskId = taskId;
+    for (const event of createAgentBirthTaskEvents({
+      agentName: draft.profile.name,
+      approvalId: approval.id,
+      taskId
+    })) {
+      appendCapabilityTaskEvent(event, 'waiting_approval');
+    }
+    appState.messages = [
+      ...appState.messages,
+      {
+        id: Date.now(),
+        author: 'bubbles',
+        text: `I drafted ${draft.profile.name}. Please approve the agent file creation before I write it.`
+      }
+    ];
+    appState.avatarState = 'waiting_approval';
+    appState.approvals = await approvalService.list();
+    presentApprovalPopupWindow();
+    broadcastAppState();
+  } catch (error) {
+    const errorMessage = `I could not draft that agent: ${redactSecrets(error instanceof Error ? error.message : String(error))}`;
+    appState.activeTaskId = null;
+    appendCapabilityTaskEvent(
+      createTaskEvent(taskId, 'task.error', {
+        errorMessage,
+        taskType: 'agent.create'
+      }),
+      'concerned'
+    );
+    appState.messages = [
+      ...appState.messages,
+      {
+        id: Date.now(),
+        author: 'bubbles',
+        text: errorMessage
+      }
+    ];
+    appState.avatarState = 'concerned';
+    broadcastAppState();
+  }
+  return true;
+}
+
+function agentBirthDraftTimeoutMs() {
+  const timeout = Number(process.env.BUBBLES_AGENT_BIRTH_TIMEOUT_MS ?? 20000);
+
+  return Number.isFinite(timeout) && timeout > 0 ? timeout : 20000;
+}
+
+async function handlePendingAgentSwitch(userText: string) {
+  const pending = pendingAgentSwitch;
+
+  if (!pending) {
+    return false;
+  }
+
+  if (isAgentSwitchConfirmation(userText)) {
+    pendingAgentSwitch = undefined;
+    appState.activeAgent = (await agentRegistry?.activate(pending.agentId)) ?? appState.activeAgent;
+    await timelineStore?.append({
+      type: 'agent_activated',
+      title: 'Agent activated',
+      summary: `${pending.name} is now active.`,
+      agentId: pending.agentId
+    });
+    appState.messages = [
+      ...appState.messages,
+      { id: Date.now(), author: 'user', text: userText },
+      {
+        id: Date.now() + 1,
+        author: 'bubbles',
+        text: `${pending.name} is now active.`
+      }
+    ];
+    appState.avatarState = 'celebrating';
+    await hydrateAgentState();
+    await hydrateMemoryState();
+    broadcastAppState();
+    return true;
+  }
+
+  if (isAgentSwitchDenial(userText)) {
+    pendingAgentSwitch = undefined;
+    appState.messages = [
+      ...appState.messages,
+      { id: Date.now(), author: 'user', text: userText },
+      {
+        id: Date.now() + 1,
+        author: 'bubbles',
+        text: 'Okay, I will keep the current agent active.'
+      }
+    ];
+    appState.avatarState = 'idle';
+    broadcastAppState();
+    return true;
+  }
+
+  pendingAgentSwitch = undefined;
+  return false;
+}
+
+function isAgentSwitchConfirmation(userText: string) {
+  return /\b(yes|yeah|yep|sure|switch|activate|use it|use the new agent)\b/i.test(userText);
+}
+
+function isAgentSwitchDenial(userText: string) {
+  return /\b(no|nope|not now|stay|keep current|keep bubbles)\b/i.test(userText);
+}
+
 async function runCreativeCapability(request: { kind: 'image' | 'music' | 'video'; prompt: string }) {
   const enabled =
     request.kind === 'image' ? creativeImageEnabled : request.kind === 'video' ? creativeVideoEnabled : creativeMusicEnabled;
@@ -1304,7 +1544,7 @@ async function runTavilyResearch(query: string) {
 
 async function persistResearchReport(report: ResearchReport, title: string) {
   const summary = await memoryStore?.create({
-    agentId: 'research-agent',
+    agentId: 'general-assistant',
     content: `Research: ${report.query}\n\n${report.text.slice(0, 1200)}`,
     sourceTaskId: report.id,
     tags: ['research'],
@@ -1312,7 +1552,7 @@ async function persistResearchReport(report: ResearchReport, title: string) {
     importance: 4
   });
   await timelineStore?.append({
-    agentId: 'research-agent',
+    agentId: 'general-assistant',
     memoryId: summary?.id,
     metadata: {
       citations: report.citations.map((citation) => ({ title: citation.title, url: citation.url })),
@@ -1605,6 +1845,18 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
   });
 
   if (approval.status !== 'approved') {
+    if (approval.actionType === 'agent_file_create') {
+      appendCapabilityTaskEvent(
+        createTaskEvent(approval.taskId, approval.status === 'denied' ? 'approval.denied' : 'task.cancelled', {
+          text: `Agent file creation was ${approval.status}.`,
+          taskType: 'agent.create'
+        }),
+        'idle'
+      );
+      if (appState.activeTaskId === approval.taskId) {
+        appState.activeTaskId = null;
+      }
+    }
     await hydrateApprovalState();
     await hydrateMemoryState();
     appState.avatarState = 'idle';
@@ -1626,12 +1878,12 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
     broadcastAppState();
   }
 
-  const agentDraft = pendingAgentDrafts.get(approval.id);
+  const agentDraft = pendingAgentDrafts.get(approval.id) ?? agentDraftFromApprovalPreview(approval.preview);
 
   if (agentDraft && agentRegistry) {
-    const agent = await agentRegistry.create(agentDraft);
+    const agent = await agentRegistry.create(agentDraft, { activate: false });
     pendingAgentDrafts.delete(approval.id);
-    appState.activeAgent = agent;
+    pendingAgentSwitch = { agentId: agent.id, name: agent.name };
     await timelineStore?.append({
       type: 'agent_created',
       title: 'Agent created',
@@ -1644,9 +1896,21 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
       {
         id: Date.now() + 1,
         author: 'bubbles',
-        text: `${agent.name} is created and ready.`
+        speakOnArrival: true,
+        text: agentCreatedSwitchPrompt,
+        voiceText: agentCreatedSwitchPrompt
       }
     ];
+    appendCapabilityTaskEvent(
+      createTaskEvent(approval.taskId, 'task.result', {
+        text: `${agent.name} files were created.`,
+        taskType: 'agent.create'
+      }),
+      'celebrating'
+    );
+    if (appState.activeTaskId === approval.taskId) {
+      appState.activeTaskId = null;
+    }
   }
 
   const landingPageResult = await runApprovedLandingPageAction(approval);
@@ -1660,6 +1924,28 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
 
 function isLandingPageApproval(approval: ApprovalRequest) {
   return approval.actionType === 'shell_command' && approval.title === 'Generate landing page';
+}
+
+function agentDraftFromApprovalPreview(preview: Record<string, unknown>): AgentBirthDraft | undefined {
+  const profile = preview.agent;
+  const agentMarkdown = preview.agentMarkdown;
+  const skillsMarkdown = preview.skillsMarkdown;
+
+  if (
+    profile &&
+    typeof profile === 'object' &&
+    !Array.isArray(profile) &&
+    typeof agentMarkdown === 'string' &&
+    typeof skillsMarkdown === 'string'
+  ) {
+    return {
+      profile: profile as AgentProfile,
+      agentMarkdown,
+      skillsMarkdown
+    };
+  }
+
+  return undefined;
 }
 
 async function handleRememberCommand(userText: string) {

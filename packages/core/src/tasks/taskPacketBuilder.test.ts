@@ -66,13 +66,13 @@ describe('buildTaskPacket', () => {
 
   it('accepts explicit task routing, connector context, and approval policy overrides', async () => {
     const rootDir = join(tmpdir(), `bubbles-agent-routing-${Date.now()}`);
-    const agentDir = join(rootDir, 'agents', 'research-agent');
+    const agentDir = join(rootDir, 'agents', 'analysis-agent');
     await mkdir(agentDir, { recursive: true });
     await writeFile(
       join(agentDir, 'agent.json'),
       JSON.stringify({
-        id: 'research-agent',
-        name: 'Research Bubbles',
+        id: 'analysis-agent',
+        name: 'Analysis Bubbles',
         role: 'Research assistant',
         badgeName: 'Research',
         voiceStyle: 'clear and sourced',
@@ -80,7 +80,7 @@ describe('buildTaskPacket', () => {
         memoryRules: ['Save useful research findings.'],
         safetyRules: ['Name uncertainty.'],
         responseStyle: 'Source-aware summary',
-        skillsPath: 'agents/research-agent/skills.md',
+        skillsPath: 'agents/analysis-agent/skills.md',
         createdAt: '2026-05-14T00:00:00.000Z',
         updatedAt: '2026-05-14T00:00:00.000Z'
       }),
@@ -89,7 +89,7 @@ describe('buildTaskPacket', () => {
     await writeFile(join(agentDir, 'skills.md'), '# Research skills\n\nCite sources.', 'utf8');
 
     const packet = await buildTaskPacket({
-      activeAgentId: 'research-agent',
+      activeAgentId: 'analysis-agent',
       approvalPolicy: 'preview_all_actions',
       connectorContext: {
         web: {
@@ -102,7 +102,7 @@ describe('buildTaskPacket', () => {
     });
 
     expect(packet).toMatchObject({
-      activeAgentId: 'research-agent',
+      activeAgentId: 'analysis-agent',
       taskType: 'research.web',
       approvalPolicy: 'preview_all_actions',
       connectorContext: {

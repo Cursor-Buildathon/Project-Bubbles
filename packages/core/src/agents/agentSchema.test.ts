@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { validateAgentProfile } from './agentSchema.js';
 
 const validProfile = {
-  id: 'research-agent',
-  name: 'Research Bubbles',
-  role: 'Research assistant',
-  badgeName: 'Research',
+  id: 'analysis-agent',
+  name: 'Analysis Bubbles',
+  role: 'Analysis assistant',
+  badgeName: 'Analysis',
   voiceStyle: 'Curious and concise',
   allowedTools: ['minimax.text', 'minimax.search'],
   memoryRules: ['Use project context memories when relevant.'],
   safetyRules: ['Ask before external data sharing.'],
-  responseStyle: 'Structured research summary',
-  skillsPath: 'agents/research-agent/skills.md',
+  responseStyle: 'Structured analysis summary',
+  skillsPath: 'agents/analysis-agent/skills.md',
   createdAt: '2026-05-14T00:00:00.000Z',
   updatedAt: '2026-05-14T00:00:00.000Z'
 };

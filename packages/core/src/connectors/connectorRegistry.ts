@@ -186,7 +186,7 @@ function createDefault(id: string, name: string, type: ConnectorType, updatedAt:
     mode: 'real',
     authStatus: 'not_configured',
     healthStatus: 'unknown',
-    allowedAgents: ['research-agent'],
+    allowedAgents: ['general-assistant'],
     requiredApproval: 'none',
     launchConfig: {
       maxResults: 8,

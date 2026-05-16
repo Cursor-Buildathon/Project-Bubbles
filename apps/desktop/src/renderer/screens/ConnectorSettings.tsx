@@ -71,7 +71,7 @@ export function ConnectorSettings({ connectors, onDisconnect, onHealthCheck, onU
 
 function tavilyUpdate(): Partial<ConnectorConfig> {
   return {
-    allowedAgents: ['research-agent'],
+    allowedAgents: ['general-assistant'],
     enabled: true,
     launchConfig: {
       maxResults: 8,

@@ -14,31 +14,31 @@ export function classifyIntent(userText: string): IntentClassification {
   }
 
   if (/\b(generate|make|create|draw|render)\b.*\b(image|poster|logo|mockup|picture|illustration)\b/.test(text)) {
-    return intent('creative.image', 'creative-minimax-helper', 0.86);
+    return intent('creative.image', 'general-assistant', 0.86);
   }
 
   if (/\b(generate|make|create|render)\b.*\b(video|clip|animation|short film|film)\b/.test(text)) {
-    return intent('creative.video', 'creative-minimax-helper', 0.86);
+    return intent('creative.video', 'general-assistant', 0.86);
   }
 
   if (/\b(generate|make|create)\b.*\b(music|song|track|audio|background music|theme)\b/.test(text)) {
-    return intent('creative.music', 'creative-minimax-helper', 0.84);
+    return intent('creative.music', 'general-assistant', 0.84);
   }
 
   if (/\b(build|make|create|generate)\b.*\b(landing page|webpage|web page|site|website)\b/.test(text)) {
-    return intent('coding.landing_page', 'coding-agent', 0.84);
+    return intent('coding.landing_page', 'general-assistant', 0.84);
   }
 
   if (/\b(voice|tts|audio|image|vision|music|song|video|clip|animation|generate)\b/.test(text)) {
-    return intent('creative.minimax', 'creative-minimax-helper', 0.78);
+    return intent('creative.minimax', 'general-assistant', 0.78);
   }
 
   if (/\b(do me a research|do research|research|search me|search for|search|sources?|best way|look up|investigate|find sources?)\b/.test(text)) {
-    return intent('research.web', 'research-agent', 0.82);
+    return intent('research.web', 'general-assistant', 0.82);
   }
 
   if (/\b(code|coding|build|implement|fix|project|feature|repo)\b/.test(text)) {
-    return intent('coding.project', 'coding-agent', 0.76);
+    return intent('coding.project', 'general-assistant', 0.76);
   }
 
   return intent('general.plan', 'general-assistant', 0.7);

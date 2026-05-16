@@ -29,11 +29,23 @@ export function registerApprovalIpc({ approvalService, onApprovalResolved, onCha
     return approvals;
   });
   ipcMain.handle('approvals:deny', async (_event, id: string) => {
-    await approvalService.deny(id);
-    return changed();
+    const approval = await approvalService.deny(id);
+    const approvals = await changed();
+
+    void Promise.resolve(onApprovalResolved?.(approval)).catch((error) => {
+      console.error('Approval follow-up failed:', error);
+    });
+
+    return approvals;
   });
   ipcMain.handle('approvals:cancel', async (_event, id: string) => {
-    await approvalService.cancel(id);
-    return changed();
+    const approval = await approvalService.cancel(id);
+    const approvals = await changed();
+
+    void Promise.resolve(onApprovalResolved?.(approval)).catch((error) => {
+      console.error('Approval follow-up failed:', error);
+    });
+
+    return approvals;
   });
 }

@@ -79,7 +79,7 @@ function tavilyConfig(): ConnectorConfig {
     mode: 'real',
     authStatus: 'ready',
     healthStatus: 'healthy',
-    allowedAgents: ['research-agent'],
+    allowedAgents: ['general-assistant'],
     requiredApproval: 'none',
     launchConfig: { maxResults: 8, remoteUrl: 'https://mcp.tavily.com/mcp/', searchDepth: 'advanced' },
     updatedAt: '2026-05-14T00:00:00.000Z'
