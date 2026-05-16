@@ -280,6 +280,7 @@ declare global {
         bargeIn: (input?: { stoppedTtsId?: string }) => Promise<VoiceIpcResult>;
         getState: () => Promise<VoiceSessionState>;
         onEvent: (callback: (event: VoiceEvent, state: VoiceSessionState) => void) => () => void;
+        onShortcutStart?: (callback: () => void) => () => void;
         openMicrophoneSettings?: () => Promise<{ ok: boolean; error?: string }>;
         requestMicrophoneAccess?: () => Promise<{ ok: boolean; status: 'granted' | 'denied' }>;
         resolveApproval?: (input: {

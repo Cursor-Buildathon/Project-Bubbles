@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, protocol, screen, session, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, net, protocol, screen, session, shell, systemPreferences } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
@@ -66,6 +66,7 @@ import { registerTaskIpc, type TaskIpcController } from './ipc/taskIpc.js';
 import { createVoiceIpcController, registerVoiceIpc } from './ipc/voiceIpc.js';
 import { registerVoiceSetupIpc } from './ipc/voiceSetupIpc.js';
 import { sendToWindow } from './ipc/windowMessaging.js';
+import { registerVoiceShortcut, unregisterVoiceShortcut, VOICE_SHORTCUT_CHANNEL } from './voiceShortcut.js';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -363,12 +364,28 @@ void app.whenReady().then(() => {
     preflight: preflightMiniMaxApi
   });
   createWindow();
+  registerVoiceShortcut({
+    createPanelWindow,
+    enabled: voiceEnabled,
+    getPanelWindow: () => panelWindow,
+    onRegistrationFailed: (accelerator) => {
+      appendTraceEvent('voice.shortcut_registration_failed', {
+        fields: { accelerator }
+      });
+    },
+    sendShortcutStart: (window) => sendToWindow(window, VOICE_SHORTCUT_CHANNEL),
+    shortcut: globalShortcut
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+});
+
+app.on('will-quit', () => {
+  unregisterVoiceShortcut(globalShortcut);
 });
 
 function registerWindowIpc() {

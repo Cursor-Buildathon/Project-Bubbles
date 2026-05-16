@@ -218,21 +218,11 @@ describe('useVoiceSession', () => {
     }
   });
 
-  it('uses Hi Bubbles as a wake phrase and submits the remaining command text', async () => {
+  it('does not start a paid wake transcription loop when the panel mounts', async () => {
     const previousBubbles = window.bubbles;
     const media = mockMediaCaptureWithRecorders();
-    const onTranscript = vi.fn().mockResolvedValue(undefined);
-    const startSession = vi.fn().mockResolvedValue({
-      event: { type: 'voice.session_started', voiceTurnId: 'voice-wake-1', traceId: 'trace-1' },
-      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-wake-1' })
-    });
-    const transcribeAudio = vi.fn().mockResolvedValue({
-      ok: true,
-      event: { type: 'voice.final', voiceTurnId: 'voice-wake-1', text: 'Hi Bubbles change your voice' },
-      provider: 'gemini',
-      state: createVoiceState({ status: 'processing', captionText: 'Hi Bubbles change your voice' }),
-      transcript: 'Hi Bubbles change your voice'
-    });
+    const startSession = vi.fn();
+    const transcribeAudio = vi.fn();
 
     try {
       window.bubbles = {
@@ -249,120 +239,144 @@ describe('useVoiceSession', () => {
           submitPartialTranscript: vi.fn(),
           submitTranscript: vi.fn(),
           transcribeAudio
-        }
-      };
-
-      const { result } = renderHook(() =>
-        useVoiceSession({
-          chatEnabled: true,
-          initialWakePhraseEnabled: true,
-          latestBubbleText: '',
-          onTranscript
-        })
-      );
-
-      await waitFor(() => expect(media.recorders).toHaveLength(1));
-
-      await act(async () => {
-        media.recorders[0]?.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-        media.recorders[0]?.stop();
-      });
-
-      await waitFor(() => expect(onTranscript).toHaveBeenCalledWith('change your voice'));
-      expect(transcribeAudio).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mimeType: 'audio/wav',
-          voiceTurnId: 'voice-wake-1'
-        })
-      );
-      expect(result.current.voiceState.captionText).toBe('change your voice');
-    } finally {
-      window.bubbles = previousBubbles;
-      media.restore();
-    }
-  });
-
-  it('ignores speech that does not start with the Hi Bubbles wake phrase', async () => {
-    const previousBubbles = window.bubbles;
-    const media = mockMediaCaptureWithRecorders();
-    const onTranscript = vi.fn();
-    const stopSession = vi.fn().mockResolvedValue(createVoiceState());
-
-    try {
-      window.bubbles = {
-        ...createBaseBubbles(),
-        voice: {
-          bargeIn: vi.fn(),
-          getState: vi.fn().mockResolvedValue(createVoiceState()),
-          onEvent: vi.fn(() => () => undefined),
-          requestMicrophoneAccess: vi.fn().mockResolvedValue({ ok: true, status: 'granted' }),
-          speak: vi.fn(),
-          startSession: vi.fn().mockResolvedValue({
-            event: { type: 'voice.session_started', voiceTurnId: 'voice-wake-2', traceId: 'trace-2' },
-            state: createVoiceState({ status: 'listening', activeTurnId: 'voice-wake-2' })
-          }),
-          stopSession,
-          stopSpeaking: vi.fn(),
-          submitPartialTranscript: vi.fn(),
-          submitTranscript: vi.fn(),
-          transcribeAudio: vi.fn().mockResolvedValue({
-            ok: true,
-            event: { type: 'voice.final', voiceTurnId: 'voice-wake-2', text: 'change your voice' },
-            provider: 'gemini',
-            state: createVoiceState({ status: 'processing', captionText: 'change your voice' }),
-            transcript: 'change your voice'
-          })
         }
       };
 
       renderHook(() =>
         useVoiceSession({
           chatEnabled: true,
-          initialWakePhraseEnabled: true,
           latestBubbleText: '',
-          onTranscript
+          onTranscript: vi.fn()
         })
       );
 
-      await waitFor(() => expect(media.recorders).toHaveLength(1));
-
       await act(async () => {
-        media.recorders[0]?.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-        media.recorders[0]?.stop();
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
       });
 
-      await waitFor(() => expect(stopSession).toHaveBeenCalled());
-      expect(onTranscript).not.toHaveBeenCalled();
+      expect(media.recorders).toHaveLength(0);
+      expect(startSession).not.toHaveBeenCalled();
+      expect(transcribeAudio).not.toHaveBeenCalled();
     } finally {
       window.bubbles = previousBubbles;
       media.restore();
     }
   });
 
-  it('stops wake listening after terminal STT failure instead of retrying', async () => {
+  it('starts one command capture from the voice shortcut event', async () => {
     const previousBubbles = window.bubbles;
     const media = mockMediaCaptureWithRecorders();
-    const onTranscript = vi.fn();
+    let shortcutCallback: (() => void) | undefined;
     const startSession = vi.fn().mockResolvedValue({
-      event: { type: 'voice.session_started', voiceTurnId: 'voice-wake-terminal', traceId: 'trace-terminal' },
-      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-wake-terminal' })
+      event: { type: 'voice.session_started', voiceTurnId: 'voice-shortcut-1', traceId: 'trace-2' },
+      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-shortcut-1' })
     });
-    const transcribeAudio = vi.fn().mockResolvedValue({
-      ok: false,
-      event: {
-        type: 'voice.error',
-        voiceTurnId: 'voice-wake-terminal',
-        error: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.',
-        provider: 'gemini'
-      },
-      provider: 'gemini',
-      reason: 'quota',
-      retryable: false,
-      state: createVoiceState({
-        status: 'error',
-        captionText: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.',
-        lastError: 'Voice STT is unavailable. Gemini quota is exhausted and no working OpenAI fallback is configured.'
-      })
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn(() => () => undefined),
+          onShortcutStart: vi.fn((callback) => {
+            shortcutCallback = callback;
+            return () => undefined;
+          }),
+          requestMicrophoneAccess: vi.fn().mockResolvedValue({ ok: true, status: 'granted' }),
+          speak: vi.fn(),
+          startSession,
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn(),
+          transcribeAudio: vi.fn()
+        }
+      };
+
+      renderHook(() =>
+        useVoiceSession({
+          chatEnabled: true,
+          latestBubbleText: '',
+          onTranscript: vi.fn()
+        })
+      );
+
+      await waitFor(() => expect(shortcutCallback).toBeDefined());
+
+      await act(async () => {
+        shortcutCallback?.();
+      });
+
+      await waitFor(() => expect(media.recorders).toHaveLength(1));
+      expect(startSession).toHaveBeenCalledTimes(1);
+    } finally {
+      window.bubbles = previousBubbles;
+      media.restore();
+    }
+  });
+
+  it('does not create duplicate recorders from repeated shortcut events while active', async () => {
+    const previousBubbles = window.bubbles;
+    const media = mockMediaCaptureWithRecorders();
+    let shortcutCallback: (() => void) | undefined;
+    const startSession = vi.fn().mockResolvedValue({
+      event: { type: 'voice.session_started', voiceTurnId: 'voice-shortcut-2', traceId: 'trace-2' },
+      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-shortcut-2' })
+    });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn(() => () => undefined),
+          onShortcutStart: vi.fn((callback) => {
+            shortcutCallback = callback;
+            return () => undefined;
+          }),
+          requestMicrophoneAccess: vi.fn().mockResolvedValue({ ok: true, status: 'granted' }),
+          speak: vi.fn(),
+          startSession,
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn(),
+          transcribeAudio: vi.fn()
+        }
+      };
+
+      renderHook(() =>
+        useVoiceSession({
+          chatEnabled: true,
+          latestBubbleText: '',
+          onTranscript: vi.fn()
+        })
+      );
+
+      await waitFor(() => expect(shortcutCallback).toBeDefined());
+
+      await act(async () => {
+        shortcutCallback?.();
+        shortcutCallback?.();
+      });
+
+      await waitFor(() => expect(media.recorders).toHaveLength(1));
+      expect(startSession).toHaveBeenCalledTimes(1);
+    } finally {
+      window.bubbles = previousBubbles;
+      media.restore();
+    }
+  });
+
+  it('does not spend STT on a noise-only capture', async () => {
+    const previousBubbles = window.bubbles;
+    const media = mockMediaCaptureWithRecorders({ detectSpeech: false });
+    const transcribeAudio = vi.fn();
+    const startSession = vi.fn().mockResolvedValue({
+      event: { type: 'voice.session_started', voiceTurnId: 'voice-noise', traceId: 'trace-noise' },
+      state: createVoiceState({ status: 'listening', activeTurnId: 'voice-noise' })
     });
 
     try {
@@ -386,30 +400,73 @@ describe('useVoiceSession', () => {
       const { result } = renderHook(() =>
         useVoiceSession({
           chatEnabled: true,
-          initialWakePhraseEnabled: true,
+          latestBubbleText: '',
+          onTranscript: vi.fn()
+        })
+      );
+
+      await act(async () => {
+        await result.current.startListening();
+      });
+
+      await act(async () => {
+        media.recorders[0]?.emitData(new Blob(['noise'], { type: 'audio/webm' }));
+        media.recorders[0]?.stop();
+      });
+
+      await waitFor(() => expect(result.current.voiceState.status).toBe('idle'));
+      expect(transcribeAudio).not.toHaveBeenCalled();
+    } finally {
+      window.bubbles = previousBubbles;
+      media.restore();
+    }
+  });
+
+  it.each([
+    ['Hey Bubbles change your voice', 'change your voice'],
+    ['Hi Bubbles change your voice', 'change your voice']
+  ])('strips an intentional %s command prefix before submitting chat', async (transcript, expectedCommand) => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const onTranscript = vi.fn().mockResolvedValue(undefined);
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak: vi.fn(),
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      renderHook(() =>
+        useVoiceSession({
+          chatEnabled: true,
           latestBubbleText: '',
           onTranscript
         })
       );
 
-      await waitFor(() => expect(media.recorders).toHaveLength(1));
-
       await act(async () => {
-        media.recorders[0]?.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-        media.recorders[0]?.stop();
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-prefix', text: transcript },
+          createVoiceState({ status: 'processing', captionText: transcript })
+        );
       });
 
-      await waitFor(() => expect(transcribeAudio).toHaveBeenCalledTimes(1));
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
-
-      expect(media.recorders).toHaveLength(1);
-      expect(startSession).toHaveBeenCalledTimes(1);
-      expect(onTranscript).not.toHaveBeenCalled();
-      expect(result.current.voiceState.status).toBe('error');
-      expect(result.current.wakePhraseEnabled).toBe(false);
+      await waitFor(() => expect(onTranscript).toHaveBeenCalledWith(expectedCommand));
     } finally {
       window.bubbles = previousBubbles;
-      media.restore();
     }
   });
 
@@ -460,8 +517,8 @@ describe('useVoiceSession', () => {
 
       await act(async () => {
         voiceCallback?.(
-          { type: 'voice.final', voiceTurnId: 'voice-1', text: 'approve', confidence: 0.92 },
-          createVoiceState({ status: 'processing', captionText: 'approve' })
+          { type: 'voice.final', voiceTurnId: 'voice-1', text: 'Hey Bubbles approve', confidence: 0.92 },
+          createVoiceState({ status: 'processing', captionText: 'Hey Bubbles approve' })
         );
       });
 
@@ -753,7 +810,7 @@ function mockMediaCapture() {
   };
 }
 
-function mockMediaCaptureWithRecorders() {
+function mockMediaCaptureWithRecorders({ detectSpeech = true }: { detectSpeech?: boolean } = {}) {
   const previousAudioContext = window.AudioContext;
   const previousMediaDevices = navigator.mediaDevices;
   const previousMediaRecorder = window.MediaRecorder;
@@ -786,9 +843,29 @@ function mockMediaCaptureWithRecorders() {
     }
   }
 
+  class FakeAudioContext {
+    createAnalyser() {
+      return {
+        fftSize: 32,
+        getFloatTimeDomainData(data: Float32Array) {
+          data.fill(detectSpeech ? 0.05 : 0);
+        }
+      };
+    }
+
+    createMediaStreamSource() {
+      return {
+        connect: vi.fn(),
+        disconnect: vi.fn()
+      };
+    }
+
+    close = vi.fn().mockResolvedValue(undefined);
+  }
+
   Object.defineProperty(window, 'AudioContext', {
     configurable: true,
-    value: undefined
+    value: detectSpeech ? undefined : FakeAudioContext
   });
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,

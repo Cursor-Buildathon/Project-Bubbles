@@ -126,7 +126,6 @@ export function App() {
 
   const voiceSession = useVoiceSession({
     chatEnabled,
-    initialWakePhraseEnabled: windowRole === 'panel' && Boolean(window.bubbles?.voice),
     latestBubbleText: latestBubbleVoiceText,
     pendingApproval,
     sideEffectsEnabled: windowRole === 'panel' || !window.bubbles,

@@ -54,12 +54,8 @@ interface AssistantPanelProps {
   timelineEvents: TimelineEvent[];
   voiceSession: {
     voiceState: VoiceSessionState;
-    wakePhrase: string;
-    wakePhraseEnabled: boolean;
     startListening: () => Promise<void>;
     stopListening: () => Promise<void>;
-    bargeIn: () => Promise<void>;
-    toggleWakePhrase: () => Promise<void>;
   };
 }
 
@@ -184,13 +180,9 @@ export function AssistantPanel({
           />
           <VoiceControls
             chatEnabled={chatEnabled}
-            onBargeIn={() => void voiceSession.bargeIn()}
             onStartListening={() => void voiceSession.startListening()}
             onStopListening={() => void voiceSession.stopListening()}
-            onToggleWakePhrase={() => void voiceSession.toggleWakePhrase()}
             voiceState={voiceSession.voiceState}
-            wakePhrase={voiceSession.wakePhrase}
-            wakePhraseEnabled={voiceSession.wakePhraseEnabled}
           />
           <TaskDrawer activeTaskId={activeTaskId} events={taskEvents} onCancelTask={onCancelTask} />
           <section className="approval-panel" aria-label="Approvals" data-testid="approval-panel">

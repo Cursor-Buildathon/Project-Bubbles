@@ -56,6 +56,11 @@ contextBridge.exposeInMainWorld('bubbles', {
       ipcRenderer.on('voice:event', listener);
       return () => ipcRenderer.removeListener('voice:event', listener);
     },
+    onShortcutStart: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('voice:shortcut-start', listener);
+      return () => ipcRenderer.removeListener('voice:shortcut-start', listener);
+    },
     openMicrophoneSettings: () => ipcRenderer.invoke('voice:open-microphone-settings'),
     requestMicrophoneAccess: () => ipcRenderer.invoke('voice:request-microphone-access'),
     resolveApproval: (input: unknown) => ipcRenderer.invoke('voice:resolve-approval', input),

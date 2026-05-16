@@ -3,7 +3,6 @@ import { type VoiceEvent, type VoiceSessionState } from '@bubbles/core';
 
 interface UseVoiceSessionOptions {
   chatEnabled: boolean;
-  initialWakePhraseEnabled?: boolean;
   latestBubbleText: string;
   pendingApproval?: {
     id: string;
@@ -14,11 +13,10 @@ interface UseVoiceSessionOptions {
   onTranscript: (text: string) => Promise<void> | void;
 }
 
-const WAKE_PHRASE = 'Hi Bubbles';
+const COMMAND_PREFIX_LABEL = 'Hey Bubbles';
 
 export function useVoiceSession({
   chatEnabled,
-  initialWakePhraseEnabled = false,
   latestBubbleText,
   pendingApproval,
   sideEffectsEnabled = true,
@@ -26,12 +24,9 @@ export function useVoiceSession({
   onTranscript
 }: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceSessionState>(() => createRendererVoiceState({ enabled: true }));
-  const [voiceStateLoaded, setVoiceStateLoaded] = useState(false);
-  const [wakePhraseEnabled, setWakePhraseEnabled] = useState(initialWakePhraseEnabled);
-  const [wakeCycle, setWakeCycle] = useState(0);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const capturePurposeRef = useRef<'command' | 'wake'>('command');
+  const captureStartInFlightRef = useRef(false);
   const shouldSpeakNextReplyRef = useRef(false);
   const currentTtsIdRef = useRef<string | undefined>(undefined);
   const lastSpokenTextRef = useRef('');
@@ -40,54 +35,40 @@ export function useVoiceSession({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadCleanupRef = useRef<() => void>();
   const voiceEventReceivedRef = useRef(false);
-  const chatEnabledRef = useRef(chatEnabled);
   const onApprovalResolvedRef = useRef(onApprovalResolved);
   const onTranscriptRef = useRef(onTranscript);
   const pendingApprovalRef = useRef(pendingApproval);
   const sideEffectsEnabledRef = useRef(sideEffectsEnabled);
   const speechDetectedRef = useRef(false);
-  const wakePhraseEnabledRef = useRef(wakePhraseEnabled);
-  const wakeRestartTimerRef = useRef<number | undefined>(undefined);
-  const wakeStartInFlightRef = useRef(false);
-  const wakeTurnIdsRef = useRef(new Set<string>());
+  const voiceStateRef = useRef(voiceState);
 
   useEffect(() => {
-    chatEnabledRef.current = chatEnabled;
     onApprovalResolvedRef.current = onApprovalResolved;
     onTranscriptRef.current = onTranscript;
     pendingApprovalRef.current = pendingApproval;
     sideEffectsEnabledRef.current = sideEffectsEnabled;
-    wakePhraseEnabledRef.current = wakePhraseEnabled;
-  }, [chatEnabled, onApprovalResolved, onTranscript, pendingApproval, sideEffectsEnabled, wakePhraseEnabled]);
+  }, [onApprovalResolved, onTranscript, pendingApproval, sideEffectsEnabled]);
+
+  useEffect(() => {
+    voiceStateRef.current = voiceState;
+  }, [voiceState]);
 
   useEffect(() => {
     let ignore = false;
 
     const statePromise = window.bubbles?.voice?.getState();
 
-    if (!statePromise) {
-      setVoiceStateLoaded(true);
-    } else {
+    if (statePromise) {
       void statePromise
         .then((state) => {
           if (!ignore && !voiceEventReceivedRef.current) {
             setVoiceState(state);
-          }
-        })
-        .finally(() => {
-          if (!ignore) {
-            setVoiceStateLoaded(true);
           }
         });
     }
 
     const unsubscribe = window.bubbles?.voice?.onEvent((event, state) => {
       voiceEventReceivedRef.current = true;
-      const wakeFinal = event.type === 'voice.final' && wakeTurnIdsRef.current.has(event.voiceTurnId);
-
-      if (wakeFinal) {
-        return;
-      }
 
       setVoiceState(state);
 
@@ -96,33 +77,7 @@ export function useVoiceSession({
       }
 
       if (event.type === 'voice.final' && event.text.trim()) {
-        const activePendingApproval = pendingApprovalRef.current;
-
-        if (activePendingApproval && window.bubbles?.voice?.resolveApproval) {
-          void window.bubbles.voice
-            .resolveApproval({
-              approvalId: activePendingApproval.id,
-              voiceTurnId: event.voiceTurnId,
-              transcript: event.text
-            })
-            .then((result) => {
-              onApprovalResolvedRef.current?.(result.message);
-              setVoiceState((current) =>
-                createRendererVoiceState({
-                  ...current,
-                  status: result.fallbackRequired ? 'idle' : 'speaking',
-                  activeTurnId: result.fallbackRequired ? undefined : current.activeTurnId,
-                  partialText: '',
-                  captionText: result.message,
-                  lastError: undefined
-                })
-              );
-            });
-          return;
-        }
-
-        shouldSpeakNextReplyRef.current = true;
-        void onTranscriptRef.current(event.text);
+        void handleFinalTranscript(event);
       }
     });
 
@@ -134,7 +89,6 @@ export function useVoiceSession({
 
   useEffect(() => {
     return () => {
-      clearWakeRestartTimer(wakeRestartTimerRef);
       stopCaptureResources(vadCleanupRef, mediaRecorderRef, mediaStreamRef);
       stopActiveAudio(activeAudioRef);
     };
@@ -181,101 +135,42 @@ export function useVoiceSession({
     });
   }, [pendingApproval]);
 
-  async function startWakeListening() {
+  const startListening = useCallback(async (force = false) => {
     const voiceApi = window.bubbles?.voice;
+    const currentStatus = voiceStateRef.current.status;
 
     if (
-      !chatEnabledRef.current ||
-      !sideEffectsEnabledRef.current ||
-      !wakePhraseEnabledRef.current ||
-      wakeStartInFlightRef.current ||
+      !chatEnabled ||
+      !sideEffectsEnabled ||
+      (!force && (currentStatus === 'listening' || currentStatus === 'processing')) ||
       mediaRecorderRef.current ||
+      captureStartInFlightRef.current ||
       !voiceApi?.startSession ||
-      !voiceApi.transcribeAudio ||
       !canUseMicrophoneCapture()
     ) {
       return;
     }
 
-    wakeStartInFlightRef.current = true;
-    capturePurposeRef.current = 'wake';
+    captureStartInFlightRef.current = true;
     let voiceTurnId: string | undefined;
 
     try {
-      const result = await voiceApi.startSession();
+      let result;
+
+      if (currentStatus === 'speaking') {
+        stopActiveAudio(activeAudioRef);
+        await voiceApi.stopSpeaking?.({ ttsId: currentTtsIdRef.current ?? 'tts-current' });
+        result = await voiceApi.bargeIn?.({ stoppedTtsId: currentTtsIdRef.current ?? 'tts-current' });
+      } else {
+        result = await voiceApi.startSession();
+      }
+
       voiceTurnId = result?.state.activeTurnId;
 
-      if (voiceTurnId) {
-        wakeTurnIdsRef.current.add(voiceTurnId);
-      }
-
       if (result) {
-        setVoiceState(
-          createRendererVoiceState({
-            ...result.state,
-            mode: 'always-listening',
-            captionText: `Say "${WAKE_PHRASE}"`
-          })
-        );
+        setVoiceState(result.state);
       }
 
-      await startMicrophoneCapture(voiceTurnId, 'wake');
-    } catch (error) {
-      if (voiceTurnId) {
-        wakeTurnIdsRef.current.delete(voiceTurnId);
-      }
-      stopCaptureResources(vadCleanupRef, mediaRecorderRef, mediaStreamRef);
-      const message = error instanceof Error ? error.message : String(error);
-      setVoiceState((current) =>
-        createRendererVoiceState({
-          ...current,
-          status: 'error',
-          lastError: message,
-          captionText: message
-        })
-      );
-      await window.bubbles?.voice?.stopSession();
-    } finally {
-      wakeStartInFlightRef.current = false;
-    }
-  }
-
-  useEffect(() => {
-    if (
-      !sideEffectsEnabled ||
-      !chatEnabled ||
-      !wakePhraseEnabled ||
-      !voiceStateLoaded ||
-      !voiceState.enabled ||
-      voiceState.status !== 'idle' ||
-      mediaRecorderRef.current ||
-      !canUseMicrophoneCapture()
-    ) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void startWakeListening();
-    }, 250);
-
-    return () => window.clearTimeout(timer);
-  }, [chatEnabled, sideEffectsEnabled, voiceState.enabled, voiceState.status, voiceStateLoaded, wakeCycle, wakePhraseEnabled]);
-
-  const startListening = useCallback(async () => {
-    if (!chatEnabled || !sideEffectsEnabled) {
-      return;
-    }
-
-    clearWakeRestartTimer(wakeRestartTimerRef);
-    capturePurposeRef.current = 'command';
-    const result = await window.bubbles?.voice?.startSession();
-    const voiceTurnId = result?.state.activeTurnId;
-
-    if (result) {
-      setVoiceState(result.state);
-    }
-
-    try {
       await startMicrophoneCapture(voiceTurnId);
     } catch (error) {
       stopCaptureResources(vadCleanupRef, mediaRecorderRef, mediaStreamRef);
@@ -289,18 +184,24 @@ export function useVoiceSession({
         })
       );
       await window.bubbles?.voice?.stopSession();
+    } finally {
+      captureStartInFlightRef.current = false;
     }
   }, [chatEnabled, sideEffectsEnabled]);
 
-  const stopListening = useCallback(async () => {
+  useEffect(() => {
     if (!sideEffectsEnabled) {
       return;
     }
 
-    clearWakeRestartTimer(wakeRestartTimerRef);
-    if (capturePurposeRef.current === 'wake') {
-      wakePhraseEnabledRef.current = false;
-      setWakePhraseEnabled(false);
+    return window.bubbles?.voice?.onShortcutStart?.(() => {
+      void startListening();
+    });
+  }, [sideEffectsEnabled, startListening]);
+
+  const stopListening = useCallback(async () => {
+    if (!sideEffectsEnabled) {
+      return;
     }
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -324,8 +225,6 @@ export function useVoiceSession({
       return;
     }
 
-    clearWakeRestartTimer(wakeRestartTimerRef);
-    capturePurposeRef.current = 'command';
     stopActiveAudio(activeAudioRef);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -341,62 +240,7 @@ export function useVoiceSession({
     setVoiceState((current) => createRendererVoiceState({ ...current, status: 'listening', captionText: '' }));
   }, [sideEffectsEnabled]);
 
-  const toggleWakePhrase = useCallback(async () => {
-    if (!sideEffectsEnabled) {
-      return;
-    }
-
-    const enabled = !wakePhraseEnabledRef.current;
-    wakePhraseEnabledRef.current = enabled;
-    setWakePhraseEnabled(enabled);
-    clearWakeRestartTimer(wakeRestartTimerRef);
-
-    if (!enabled) {
-      if (capturePurposeRef.current === 'wake' && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      } else {
-        stopCaptureResources(vadCleanupRef, mediaRecorderRef, mediaStreamRef);
-        await window.bubbles?.voice?.stopSession();
-      }
-
-      setVoiceState((current) =>
-        createRendererVoiceState({
-          ...current,
-          mode: 'push-to-talk',
-          status: 'idle',
-          activeTurnId: undefined,
-          partialText: '',
-          captionText: ''
-        })
-      );
-      return;
-    }
-
-    setVoiceState((current) =>
-      createRendererVoiceState({
-        ...current,
-        mode: 'always-listening',
-        status: current.status === 'idle' ? 'idle' : current.status,
-        captionText: current.status === 'idle' ? `Say "${WAKE_PHRASE}"` : current.captionText,
-        lastError: undefined
-      })
-    );
-    setWakeCycle((current) => current + 1);
-  }, [sideEffectsEnabled]);
-
-  function restartWakeListeningIfNeeded(delay = 350) {
-    clearWakeRestartTimer(wakeRestartTimerRef);
-
-    if (!chatEnabledRef.current || !sideEffectsEnabledRef.current || !wakePhraseEnabledRef.current) {
-      return;
-    }
-
-    wakeRestartTimerRef.current = window.setTimeout(() => {
-      setWakeCycle((current) => current + 1);
-    }, delay);
-  }
-
-  async function startMicrophoneCapture(voiceTurnId: string | undefined, purpose: 'command' | 'wake' = 'command') {
+  async function startMicrophoneCapture(voiceTurnId: string | undefined) {
     if (!canUseMicrophoneCapture()) {
       throw new Error('Live microphone capture is unavailable in this environment.');
     }
@@ -412,7 +256,6 @@ export function useVoiceSession({
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = selectRecorderMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    capturePurposeRef.current = purpose;
     mediaStreamRef.current = stream;
     mediaRecorderRef.current = recorder;
     audioChunksRef.current = [];
@@ -456,25 +299,19 @@ export function useVoiceSession({
 
   async function finishMicrophoneCapture(voiceTurnId: string | undefined, recordedMimeType: string) {
     const chunks = audioChunksRef.current;
-    const capturePurpose = capturePurposeRef.current;
     const heardSpeech = speechDetectedRef.current;
     speechDetectedRef.current = false;
     stopCaptureResources(vadCleanupRef, mediaRecorderRef, mediaStreamRef);
 
-    if (!chunks.length || (capturePurpose === 'wake' && !heardSpeech)) {
-      if (voiceTurnId) {
-        wakeTurnIdsRef.current.delete(voiceTurnId);
-      }
+    if (!shouldTranscribeCapture(chunks, heardSpeech)) {
       setVoiceState((current) =>
         createRendererVoiceState({
           ...current,
-          mode: capturePurpose === 'wake' ? 'always-listening' : current.mode,
           status: 'idle',
-          captionText: capturePurpose === 'wake' ? `Say "${WAKE_PHRASE}"` : ''
+          captionText: ''
         })
       );
       await window.bubbles?.voice?.stopSession();
-      restartWakeListeningIfNeeded();
       return;
     }
 
@@ -496,30 +333,6 @@ export function useVoiceSession({
         voiceTurnId
       });
 
-      if (capturePurpose === 'wake') {
-        if (voiceTurnId) {
-          wakeTurnIdsRef.current.delete(voiceTurnId);
-        }
-
-        if (!result) {
-          throw new Error('Voice transcription is unavailable.');
-        }
-
-        if (!result.ok) {
-          setVoiceState(result.state);
-          if (result.retryable === false) {
-            wakePhraseEnabledRef.current = false;
-            setWakePhraseEnabled(false);
-          } else {
-            restartWakeListeningIfNeeded();
-          }
-          return;
-        }
-
-        await handleWakeTranscript(result.transcript);
-        return;
-      }
-
       if (result) {
         setVoiceState(result.state);
       } else {
@@ -535,60 +348,71 @@ export function useVoiceSession({
           captionText: message
         })
       );
-      if (capturePurpose === 'wake') {
-        restartWakeListeningIfNeeded(1200);
-      }
     }
   }
 
-  async function handleWakeTranscript(transcript: string) {
-    const wakeCommand = extractWakePhraseCommand(transcript);
+  async function handleFinalTranscript(event: Extract<VoiceEvent, { type: 'voice.final' }>) {
+    const normalized = normalizeCommandTranscript(event.text);
 
-    if (!wakeCommand.awake) {
-      await window.bubbles?.voice?.stopSession();
-      setVoiceState((current) =>
-        createRendererVoiceState({
-          ...current,
-          mode: 'always-listening',
-          status: 'idle',
-          activeTurnId: undefined,
-          partialText: '',
-          captionText: `Say "${WAKE_PHRASE}"`
-        })
-      );
-      restartWakeListeningIfNeeded();
-      return;
-    }
-
-    if (!wakeCommand.commandText) {
+    if (normalized.hadWakePhrase && !normalized.commandText) {
       setVoiceState((current) =>
         createRendererVoiceState({
           ...current,
           mode: 'push-to-talk',
           status: 'listening',
           partialText: '',
-          captionText: `${WAKE_PHRASE}. I am listening.`,
+          captionText: `${COMMAND_PREFIX_LABEL}. I am listening.`,
           lastError: undefined
         })
       );
-      await startListening();
+      await startListening(true);
       return;
     }
 
-    capturePurposeRef.current = 'command';
+    const transcript = normalized.commandText || event.text.trim();
+
+    if (!transcript) {
+      return;
+    }
+
+    if (transcript !== event.text.trim()) {
+      setVoiceState((current) =>
+        createRendererVoiceState({
+          ...current,
+          partialText: '',
+          captionText: transcript,
+          lastError: undefined
+        })
+      );
+    }
+
+    const activePendingApproval = pendingApprovalRef.current;
+
+    if (activePendingApproval && window.bubbles?.voice?.resolveApproval) {
+      void window.bubbles.voice
+        .resolveApproval({
+          approvalId: activePendingApproval.id,
+          voiceTurnId: event.voiceTurnId,
+          transcript
+        })
+        .then((result) => {
+          onApprovalResolvedRef.current?.(result.message);
+          setVoiceState((current) =>
+            createRendererVoiceState({
+              ...current,
+              status: result.fallbackRequired ? 'idle' : 'speaking',
+              activeTurnId: result.fallbackRequired ? undefined : current.activeTurnId,
+              partialText: '',
+              captionText: result.message,
+              lastError: undefined
+            })
+          );
+        });
+      return;
+    }
+
     shouldSpeakNextReplyRef.current = true;
-    setVoiceState((current) =>
-      createRendererVoiceState({
-        ...current,
-        mode: 'push-to-talk',
-        status: 'processing',
-        activeTurnId: undefined,
-        partialText: '',
-        captionText: wakeCommand.commandText,
-        lastError: undefined
-      })
-    );
-    await onTranscriptRef.current(wakeCommand.commandText);
+    await onTranscriptRef.current(transcript);
   }
 
   function speak(text: string) {
@@ -673,10 +497,7 @@ export function useVoiceSession({
   }
 
   return {
-    toggleWakePhrase,
     voiceState,
-    wakePhrase: WAKE_PHRASE,
-    wakePhraseEnabled,
     startListening,
     stopListening,
     bargeIn
@@ -714,14 +535,18 @@ function canUseMicrophoneCapture() {
   );
 }
 
-function extractWakePhraseCommand(transcript: string): { awake: boolean; commandText: string } {
-  const match = transcript.trim().match(/^hi[\s,]+bubbles\b[\s,.:;!?-]*(.*)$/i);
+function shouldTranscribeCapture(chunks: Blob[], heardSpeech: boolean) {
+  return chunks.some((chunk) => chunk.size > 0) && heardSpeech;
+}
+
+function normalizeCommandTranscript(transcript: string): { commandText: string; hadWakePhrase: boolean } {
+  const match = transcript.trim().match(/^(?:hey|hi)[\s,]+bubbles\b[\s,.:;!?-]*(.*)$/i);
 
   if (!match) {
-    return { awake: false, commandText: '' };
+    return { commandText: transcript.trim(), hadWakePhrase: false };
   }
 
-  return { awake: true, commandText: (match[1] ?? '').trim() };
+  return { commandText: (match[1] ?? '').trim(), hadWakePhrase: true };
 }
 
 async function audioBlobToWavDataUrl(blob: Blob) {
@@ -859,15 +684,6 @@ function stopCaptureResources(
   mediaRecorderRef.current = null;
   mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
   mediaStreamRef.current = null;
-}
-
-function clearWakeRestartTimer(wakeRestartTimerRef: MutableRefObject<number | undefined>) {
-  if (wakeRestartTimerRef.current === undefined) {
-    return;
-  }
-
-  window.clearTimeout(wakeRestartTimerRef.current);
-  wakeRestartTimerRef.current = undefined;
 }
 
 function stopActiveAudio(activeAudioRef: MutableRefObject<HTMLAudioElement | null>) {

@@ -1,41 +1,28 @@
-import { Mic, MicOff, Radio, VolumeX } from 'lucide-react';
+import { Mic, MicOff } from 'lucide-react';
 import { type VoiceSessionState } from '@bubbles/core';
 import { CaptionBar } from './CaptionBar';
 
 interface VoiceControlsProps {
   chatEnabled: boolean;
-  onBargeIn: () => void;
   onStartListening: () => void;
   onStopListening: () => void;
-  onToggleWakePhrase: () => void;
   voiceState: VoiceSessionState;
-  wakePhrase: string;
-  wakePhraseEnabled: boolean;
 }
 
 export function VoiceControls({
   chatEnabled,
-  onBargeIn,
   onStartListening,
   onStopListening,
-  onToggleWakePhrase,
-  voiceState,
-  wakePhrase,
-  wakePhraseEnabled
+  voiceState
 }: VoiceControlsProps) {
   const listening = voiceState.status === 'listening' || voiceState.status === 'processing';
   const speaking = voiceState.status === 'speaking';
   const captionText = voiceState.partialText || voiceState.captionText;
-  const buttonLabel = speaking ? 'Barge in' : listening ? 'Stop voice input' : 'Start voice input';
-  const wakeButtonLabel = wakePhraseEnabled ? `Disable ${wakePhrase} wake phrase` : `Enable ${wakePhrase} wake phrase`;
+  const shortcutHint = 'CommandOrControl+Shift+Space';
+  const buttonLabel = listening ? 'Stop voice input' : `Start voice input (${shortcutHint})`;
   const statusLabel = statusText(voiceState);
 
   function handleClick() {
-    if (speaking) {
-      onBargeIn();
-      return;
-    }
-
     if (listening) {
       onStopListening();
       return;
@@ -44,7 +31,7 @@ export function VoiceControls({
     onStartListening();
   }
 
-  const Icon = speaking ? VolumeX : listening ? MicOff : Mic;
+  const Icon = listening ? MicOff : Mic;
 
   return (
     <section className="voice-controls" aria-label="Voice controls">
@@ -53,19 +40,10 @@ export function VoiceControls({
         className={listening || speaking ? 'voice-button voice-button--active' : 'voice-button'}
         disabled={!chatEnabled || !voiceState.enabled}
         onClick={handleClick}
+        title={buttonLabel}
         type="button"
       >
         <Icon size={18} aria-hidden="true" />
-      </button>
-      <button
-        aria-label={wakeButtonLabel}
-        className={wakePhraseEnabled ? 'voice-wake-button voice-wake-button--active' : 'voice-wake-button'}
-        disabled={!chatEnabled || !voiceState.enabled}
-        onClick={onToggleWakePhrase}
-        title={wakeButtonLabel}
-        type="button"
-      >
-        <Radio size={16} aria-hidden="true" />
       </button>
       <div className="voice-controls__status">
         <span>{statusLabel}</span>
@@ -81,7 +59,7 @@ function statusText(voiceState: VoiceSessionState) {
   }
 
   if (voiceState.status === 'listening') {
-    return voiceState.mode === 'always-listening' ? 'Wake phrase listening' : 'Listening';
+    return 'Listening';
   }
 
   if (voiceState.status === 'processing') {
