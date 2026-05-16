@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { ChatSurface } from './ChatSurface';
 
@@ -100,5 +100,48 @@ describe('ChatSurface', () => {
       `bubbles-artifact://local/${encodeURIComponent('/tmp/music.mp3')}`
     );
     expect(screen.getByRole('link', { name: 'Open generated site' })).toHaveAttribute('href', 'http://127.0.0.1:4173');
+  });
+
+  it('downloads image artifacts from the chat card', async () => {
+    const previousBubbles = window.bubbles;
+    const downloadArtifact = vi.fn().mockResolvedValue({ ok: true, path: '/Users/dev/Downloads/Neon desk.png' });
+
+    try {
+      window.bubbles = {
+        capabilities: {
+          downloadArtifact,
+          openArtifact: vi.fn()
+        }
+      } as unknown as NonNullable<typeof window.bubbles>;
+
+      render(
+        <ChatSurface
+          chatEnabled
+          draft=""
+          messages={[
+            {
+              id: 1,
+              author: 'bubbles',
+              text: 'The image is ready.',
+              artifacts: [{ id: 'image-1', kind: 'image', path: '/tmp/image.png', title: 'Neon desk' }]
+            }
+          ]}
+          onDraftChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Download generated image' }));
+
+      await waitFor(() =>
+        expect(downloadArtifact).toHaveBeenCalledWith({
+          path: '/tmp/image.png',
+          title: 'Neon desk'
+        })
+      );
+      expect(await screen.findByText('Saved to Downloads.')).toBeInTheDocument();
+    } finally {
+      window.bubbles = previousBubbles;
+    }
   });
 });

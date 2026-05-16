@@ -13,7 +13,7 @@ export function classifyIntent(userText: string): IntentClassification {
     return intent('agent.create', 'general-assistant', 0.86);
   }
 
-  if (/\b(generate|make|create)\b.*\b(image|poster|logo|mockup|picture|illustration)\b/.test(text)) {
+  if (/\b(generate|make|create|draw|render)\b.*\b(image|poster|logo|mockup|picture|illustration)\b/.test(text)) {
     return intent('creative.image', 'creative-minimax-helper', 0.86);
   }
 

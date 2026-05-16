@@ -65,6 +65,7 @@ import { registerTavilySetupIpc } from './ipc/tavilySetupIpc.js';
 import { registerTaskIpc, type TaskIpcController } from './ipc/taskIpc.js';
 import { createVoiceIpcController, registerVoiceIpc } from './ipc/voiceIpc.js';
 import { registerVoiceSetupIpc } from './ipc/voiceSetupIpc.js';
+import { shouldUseMiniMaxMediaFixture } from './mediaFixtureMode.js';
 import { sendToWindow } from './ipc/windowMessaging.js';
 import { registerVoiceShortcut, unregisterVoiceShortcut, VOICE_SHORTCUT_CHANNEL } from './voiceShortcut.js';
 
@@ -105,7 +106,7 @@ const voiceApprovalsEnabled = voiceEnabled && process.env.BUBBLES_VOICE_APPROVAL
 const creativeImageEnabled = process.env.BUBBLES_CREATIVE_IMAGE !== 'false';
 const creativeMusicEnabled = process.env.BUBBLES_CREATIVE_MUSIC !== 'false';
 const landingPageEnabled = process.env.BUBBLES_CODING_LANDING_PAGE !== 'false';
-const minimaxMediaFixture = process.env.BUBBLES_MINIMAX_MEDIA_FIXTURE !== 'false';
+const minimaxMediaFixture = shouldUseMiniMaxMediaFixture(process.env);
 
 type AvatarState =
   | 'idle'
@@ -123,6 +124,7 @@ interface ChatMessage {
   author: 'user' | 'bubbles';
   artifacts?: ArtifactMetadata[];
   citations?: Array<{ title: string; url: string; snippet?: string }>;
+  speakOnArrival?: boolean;
   text: string;
   voiceText?: string;
 }
@@ -1008,6 +1010,7 @@ async function routeCapabilityFlow(userText: string) {
       author: 'bubbles',
       artifacts: result.artifacts,
       citations: result.citations,
+      speakOnArrival: result.speakOnArrival,
       text: result.message,
       voiceText: result.voiceText
     }

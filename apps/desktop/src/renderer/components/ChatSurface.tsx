@@ -1,5 +1,5 @@
-import { FormEvent } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+import { Download, Send, Sparkles } from 'lucide-react';
 import { type ChatMessage } from '../App';
 
 interface ChatSurfaceProps {
@@ -71,11 +71,40 @@ export function ChatSurface({ chatEnabled, draft, messages, onDraftChange, onSub
 }
 
 function ArtifactCard({ artifact }: { artifact: NonNullable<ChatMessage['artifacts']>[number] }) {
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
   if (artifact.kind === 'image' && artifact.path) {
+    async function handleDownload() {
+      if (!artifact.path || downloadStatus === 'saving') {
+        return;
+      }
+
+      setDownloadStatus('saving');
+      const result = await window.bubbles?.capabilities?.downloadArtifact?.({
+        path: artifact.path,
+        title: artifact.title
+      });
+      setDownloadStatus(result?.ok ? 'saved' : 'error');
+    }
+
     return (
       <figure className="artifact-card artifact-card--image">
         <img alt="Generated image artifact" src={artifact.url ?? toArtifactUrl(artifact.path)} />
-        <figcaption>{artifact.title ?? 'Generated image'}</figcaption>
+        <figcaption>
+          <span>{artifact.title ?? 'Generated image'}</span>
+          <button
+            aria-label="Download generated image"
+            className="artifact-card__download"
+            disabled={downloadStatus === 'saving'}
+            onClick={() => void handleDownload()}
+            type="button"
+          >
+            <Download size={14} aria-hidden="true" />
+            <span>{downloadStatus === 'saving' ? 'Saving' : 'Download'}</span>
+          </button>
+        </figcaption>
+        {downloadStatus === 'saved' ? <small className="artifact-card__status">Saved to Downloads.</small> : null}
+        {downloadStatus === 'error' ? <small className="artifact-card__status artifact-card__status--error">Download failed.</small> : null}
       </figure>
     );
   }

@@ -4,6 +4,8 @@ import { prepareSpokenResponse } from '@bubbles/core/src/voice/spokenResponsePol
 
 interface UseVoiceSessionOptions {
   chatEnabled: boolean;
+  latestBubbleMessageId?: number;
+  latestBubbleSpeakOnArrival?: boolean;
   latestBubbleText: string;
   pendingApproval?: {
     id: string;
@@ -18,6 +20,8 @@ const COMMAND_PREFIX_LABEL = 'Hey Bubbles';
 
 export function useVoiceSession({
   chatEnabled,
+  latestBubbleMessageId,
+  latestBubbleSpeakOnArrival = false,
   latestBubbleText,
   pendingApproval,
   sideEffectsEnabled = true,
@@ -32,6 +36,7 @@ export function useVoiceSession({
   const currentTtsIdRef = useRef<string | undefined>(undefined);
   const lastSpokenTextRef = useRef('');
   const lastPromptedApprovalIdRef = useRef<string | undefined>(undefined);
+  const spokenArrivalMessageIdsRef = useRef(new Set<number>());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadCleanupRef = useRef<() => void>();
@@ -100,6 +105,30 @@ export function useVoiceSession({
       return;
     }
 
+    if (!latestBubbleSpeakOnArrival || latestBubbleMessageId === undefined || spokenArrivalMessageIdsRef.current.has(latestBubbleMessageId)) {
+      return;
+    }
+
+    const text = latestBubbleText.trim();
+
+    if (!text) {
+      return;
+    }
+
+    spokenArrivalMessageIdsRef.current.add(latestBubbleMessageId);
+    shouldSpeakNextReplyRef.current = false;
+    speak(text, `${latestBubbleMessageId}:${text}`);
+  }, [latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
+
+  useEffect(() => {
+    if (!sideEffectsEnabled) {
+      return;
+    }
+
+    if (latestBubbleSpeakOnArrival) {
+      return;
+    }
+
     if (!shouldSpeakNextReplyRef.current || !latestBubbleText.trim() || latestBubbleText === lastSpokenTextRef.current) {
       return;
     }
@@ -107,7 +136,7 @@ export function useVoiceSession({
     shouldSpeakNextReplyRef.current = false;
     const spoken = prepareSpokenResponse({ chatText: latestBubbleText, summary: latestBubbleText });
     speak(spoken.voiceText, latestBubbleText);
-  }, [latestBubbleText, sideEffectsEnabled]);
+  }, [latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
 
   useEffect(() => {
     if (!sideEffectsEnabled) {

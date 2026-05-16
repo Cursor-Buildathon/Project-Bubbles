@@ -11,6 +11,9 @@ describe('classifyIntent', () => {
     ['Create a coding agent for this project', 'agent.create', 'general-assistant'],
     ['Generate a friendly voice intro', 'creative.minimax', 'creative-minimax-helper'],
     ['Generate an image of a neon desk setup', 'creative.image', 'creative-minimax-helper'],
+    ['Draw a picture of a glass greenhouse on Mars', 'creative.image', 'creative-minimax-helper'],
+    ['Render an illustration of a tiny robot florist', 'creative.image', 'creative-minimax-helper'],
+    ['Create a poster for a jazz night', 'creative.image', 'creative-minimax-helper'],
     ['Make a short song for a product launch', 'creative.music', 'creative-minimax-helper'],
     ['Build a landing page for my bakery', 'coding.landing_page', 'coding-agent']
   ])('classifies "%s"', (userText, taskType, agentId) => {

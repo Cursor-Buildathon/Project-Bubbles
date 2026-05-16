@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('bubbles', {
     update: (id: string, input: unknown) => ipcRenderer.invoke('connectors:update', id, input)
   },
   capabilities: {
+    downloadArtifact: (input: unknown) => ipcRenderer.invoke('capabilities:download-artifact', input),
     openArtifact: (input: unknown) => ipcRenderer.invoke('capabilities:open-artifact', input)
   },
   memory: {

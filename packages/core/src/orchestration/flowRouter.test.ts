@@ -51,24 +51,53 @@ describe('createFlowRouter', () => {
     });
   });
 
-  it('routes image generation through the creative service and returns an artifact', async () => {
+  it('routes image generation through the creative service, preserving the user idea for one-shot speech', async () => {
+    let requestPrompt = '';
     const router = createFlowRouter({
       creative: {
-        run: async () => ({
-          ok: true,
-          text: 'The image is ready.',
-          artifact: { id: 'image-1', kind: 'image', path: '/tmp/image.svg' }
-        })
+        run: async (request) => {
+          requestPrompt = request.prompt;
+          return {
+            ok: true,
+            text: 'The image is ready.',
+            artifact: { id: 'image-1', kind: 'image', path: '/tmp/image.svg' }
+          };
+        }
       }
     });
 
-    await expect(router.route({ userText: 'Generate an image of a neon desk', activeAgentId: 'general-assistant' })).resolves.toMatchObject({
+    await expect(
+      router.route({ userText: 'Render an illustration of a tiny robot florist', activeAgentId: 'general-assistant' })
+    ).resolves.toMatchObject({
       artifacts: [{ id: 'image-1', kind: 'image', path: '/tmp/image.svg' }],
       avatarState: 'celebrating',
       handled: true,
       message: 'The image is ready. You can download it from the chat window.',
-      taskType: 'creative.image'
+      taskType: 'creative.image',
+      voiceText: 'The image is ready.',
+      speakOnArrival: true
     });
+    expect(requestPrompt).toBe('a tiny robot florist');
+  });
+
+  it('strips the image command wrapper when the image noun appears at the end of the idea', async () => {
+    let requestPrompt = '';
+    const router = createFlowRouter({
+      creative: {
+        run: async (request) => {
+          requestPrompt = request.prompt;
+          return {
+            ok: true,
+            text: 'The image is ready.',
+            artifact: { id: 'image-1', kind: 'image', path: '/tmp/image.svg' }
+          };
+        }
+      }
+    });
+
+    await router.route({ userText: 'create a calm beach image', activeAgentId: 'general-assistant' });
+
+    expect(requestPrompt).toBe('calm beach image');
   });
 
   it('routes music generation through the creative service and returns an audio artifact', async () => {

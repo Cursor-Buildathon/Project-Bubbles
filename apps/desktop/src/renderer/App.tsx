@@ -21,6 +21,7 @@ export interface ChatMessage {
   author: 'user' | 'bubbles';
   artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string; title?: string }>;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
+  speakOnArrival?: boolean;
   text: string;
   voiceText?: string;
 }
@@ -126,6 +127,8 @@ export function App() {
 
   const voiceSession = useVoiceSession({
     chatEnabled,
+    latestBubbleMessageId: latestBubbleMessage?.id,
+    latestBubbleSpeakOnArrival: latestBubbleMessage?.speakOnArrival,
     latestBubbleText: latestBubbleVoiceText,
     pendingApproval,
     sideEffectsEnabled: windowRole === 'panel' || !window.bubbles,

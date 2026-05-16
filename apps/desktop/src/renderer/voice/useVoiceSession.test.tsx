@@ -167,6 +167,56 @@ describe('useVoiceSession', () => {
     }
   });
 
+  it('speaks flagged image-generation messages once even when the request was typed', async () => {
+    const previousBubbles = window.bubbles;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn(() => () => undefined),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      const { rerender } = renderHook(
+        ({ latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText }) =>
+          useVoiceSession({
+            chatEnabled: true,
+            latestBubbleMessageId,
+            latestBubbleSpeakOnArrival,
+            latestBubbleText,
+            onTranscript: vi.fn()
+          }),
+        { initialProps: { latestBubbleMessageId: 1, latestBubbleSpeakOnArrival: false, latestBubbleText: '' } }
+      );
+
+      rerender({
+        latestBubbleMessageId: 2,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The image is ready.'
+      });
+      rerender({
+        latestBubbleMessageId: 2,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The image is ready.'
+      });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'The image is ready.', ttsId: 'tts-current' }));
+      expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
   it('asks the user to look in chat instead of speaking long assistant replies', async () => {
     const previousBubbles = window.bubbles;
     let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;

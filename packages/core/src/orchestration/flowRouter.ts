@@ -22,6 +22,7 @@ export type FlowRouterResult =
       approvalId?: string;
       artifacts?: ArtifactMetadata[];
       citations?: TavilySearchResult[];
+      speakOnArrival?: boolean;
       voiceText?: string;
     }
   | (IntentClassification & {
@@ -117,7 +118,9 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
           message:
             kind === 'image'
               ? 'The image is ready. You can download it from the chat window.'
-              : 'The music is ready. You can listen in the chat window.'
+              : 'The music is ready. You can listen in the chat window.',
+          speakOnArrival: kind === 'image',
+          voiceText: kind === 'image' ? 'The image is ready.' : undefined
         };
       }
 
@@ -186,7 +189,18 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
 function extractCreativePrompt(userText: string, kind: 'image' | 'music'): string {
   const pattern =
     kind === 'image'
-      ? /^(generate|make|create)\s+(an?\s+)?(image|poster|logo|mockup|picture|illustration)\s+(of|for|about)?\s*/i
+      ? /^(generate|make|create|draw|render)\s+(me\s+)?((an?|the)\s+)?(image|poster|logo|mockup|picture|illustration)\s+(of|for|about)?\s*/i
       : /^(generate|make|create)\s+(a\s+)?(short\s+)?(music|song|track|audio|background music|theme)\s+(for|about)?\s*/i;
-  return userText.replace(pattern, '').trim() || userText;
+  const directPrompt = userText.replace(pattern, '').trim();
+
+  if (directPrompt && directPrompt !== userText) {
+    return directPrompt;
+  }
+
+  if (kind === 'image') {
+    const trailingImagePrompt = userText.replace(/^(generate|make|create|draw|render)\s+(me\s+)?((an?|the)\s+)?/i, '').trim();
+    return trailingImagePrompt || userText;
+  }
+
+  return directPrompt || userText;
 }

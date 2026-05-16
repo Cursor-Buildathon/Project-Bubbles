@@ -68,10 +68,38 @@ describe('createMiniMaxCreativeService', () => {
         body: JSON.stringify({
           model: 'image-01',
           prompt: 'neon desk setup',
-          response_format: 'base64'
+          response_format: 'base64',
+          n: 1,
+          prompt_optimizer: false
         })
       })
     );
+  });
+
+  it('accepts documented MiniMax image_base64 arrays', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { image_base64: [Buffer.from('array-png-bytes').toString('base64')] } })
+    });
+    const service = createMiniMaxCreativeService({ apiKey: 'sk-cp-token', fetch: fetchMock });
+
+    const result = await service.run({
+      artifactDir,
+      fixture: false,
+      kind: 'image',
+      prompt: 'glass greenhouse on Mars'
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      artifact: {
+        kind: 'image',
+        path: join(artifactDir, 'image.png')
+      }
+    });
+    await expect(readFile(join(artifactDir, 'image.png'), 'utf8')).resolves.toBe('array-png-bytes');
   });
 
   it('generates music artifacts through the direct MiniMax music API', async () => {

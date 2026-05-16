@@ -577,6 +577,46 @@ button {
   padding: 8px;
 }
 
+.artifact-card--image figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.artifact-card__download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  border: 1px solid rgba(20, 49, 47, 0.16);
+  border-radius: 7px;
+  padding: 4px 8px;
+  background: #ffffff;
+  color: #0e6157;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.artifact-card__download:disabled {
+  cursor: wait;
+  opacity: 0.66;
+}
+
+.artifact-card__status {
+  display: block;
+  padding: 0 8px 8px;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.artifact-card__status--error {
+  color: #9a3a2f;
+}
+
 .artifact-card--audio {
   background: #ffffff;
   display: grid;

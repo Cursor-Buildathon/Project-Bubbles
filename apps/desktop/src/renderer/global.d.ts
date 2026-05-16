@@ -16,6 +16,7 @@ interface ChatMessage {
   author: 'user' | 'bubbles';
   artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string; title?: string }>;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
+  speakOnArrival?: boolean;
   text: string;
   voiceText?: string;
 }
@@ -345,6 +346,7 @@ declare global {
         update: (id: string, input: Partial<ConnectorConfig>) => Promise<ConnectorConfig[]>;
       };
       capabilities?: {
+        downloadArtifact: (input: { path?: string; title?: string; url?: string }) => Promise<{ ok: boolean; error?: string; path?: string }>;
         openArtifact: (input: { path?: string; url?: string }) => Promise<{ ok: boolean; error?: string }>;
       };
       sendMessage: (userText: string) => Promise<Partial<BubblesAppState>>;

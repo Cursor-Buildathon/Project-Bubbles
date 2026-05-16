@@ -97,7 +97,9 @@ async function generateImage({
     body: JSON.stringify({
       model: 'image-01',
       prompt: request.prompt,
-      response_format: 'base64'
+      response_format: 'base64',
+      n: 1,
+      prompt_optimizer: false
     })
   });
 
@@ -236,6 +238,14 @@ function findString(record: Record<string, unknown>, paths: string[]) {
 
     if (typeof value === 'string' && value.trim()) {
       return value;
+    }
+
+    if (Array.isArray(value)) {
+      const firstString = value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+
+      if (firstString) {
+        return firstString;
+      }
     }
   }
 
