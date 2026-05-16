@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLogger } from "@bubbles/shared-logger";
 import { app, BrowserWindow } from "electron";
+import { registerImageGenHandlers } from "./ipc/image-gen.handler.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +44,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+	registerImageGenHandlers();
 	createWindow();
 });
 

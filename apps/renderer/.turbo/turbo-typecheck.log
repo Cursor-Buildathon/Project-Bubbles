@@ -1,0 +1,4 @@
+
+> @bubbles/renderer@0.0.0 typecheck C:\laragon\www\Project-Bubbles\apps\renderer
+> tsc --noEmit
+

@@ -13,7 +13,9 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@bubbles/shared-logger": "workspace:*"
+		"@bubbles/minimax-client": "workspace:*",
+		"@bubbles/shared-logger": "workspace:*",
+		"@bubbles/shared-types": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.0",

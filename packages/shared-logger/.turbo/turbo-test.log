@@ -1,0 +1,14 @@
+
+> @bubbles/shared-logger@0.0.0 test C:\laragon\www\Project-Bubbles\packages\shared-logger
+> vitest run
+
+
+ RUN  v3.2.4 C:/laragon/www/Project-Bubbles/packages/shared-logger
+
+ ✓ src/index.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  15:53:37
+   Duration  4.43s (transform 97ms, setup 0ms, collect 964ms, tests 3ms, environment 0ms, prepare 768ms)
+

@@ -35,9 +35,15 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@bubbles/minimax-client':
+        specifier: workspace:*
+        version: link:../../packages/minimax-client
       '@bubbles/shared-logger':
         specifier: workspace:*
         version: link:../../packages/shared-logger
+      '@bubbles/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -145,6 +151,9 @@ importers:
 
   packages/minimax-client:
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.18
       '@vitest/coverage-v8':
         specifier: ^3.0.5
         version: 3.2.4(vitest@3.2.4(@types/debug@4.1.13)(@types/node@22.19.18)(happy-dom@16.8.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.21.0))

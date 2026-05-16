@@ -1,0 +1,4 @@
+
+> @bubbles/minimax-client@0.0.0 typecheck C:\laragon\www\Project-Bubbles\packages\minimax-client
+> tsc --noEmit
+

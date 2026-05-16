@@ -1,0 +1,4 @@
+
+> @bubbles/agent-runtime@0.0.0 typecheck C:\laragon\www\Project-Bubbles\packages\agent-runtime
+> tsc --noEmit
+

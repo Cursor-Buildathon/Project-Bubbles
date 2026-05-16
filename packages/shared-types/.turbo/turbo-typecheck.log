@@ -1,0 +1,4 @@
+
+> @bubbles/shared-types@0.0.0 typecheck C:\laragon\www\Project-Bubbles\packages\shared-types
+> tsc --noEmit
+

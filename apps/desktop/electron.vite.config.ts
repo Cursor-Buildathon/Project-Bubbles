@@ -6,7 +6,11 @@ export default defineConfig({
 	main: {
 		plugins: [
 			externalizeDepsPlugin({
-				exclude: ["@bubbles/shared-logger"],
+				exclude: [
+					"@bubbles/shared-logger",
+					"@bubbles/shared-types",
+					"@bubbles/minimax-client",
+				],
 			}),
 		],
 	},

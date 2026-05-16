@@ -1,0 +1,14 @@
+
+> @bubbles/memory-core@0.0.0 test C:\laragon\www\Project-Bubbles\packages\memory-core
+> vitest run
+
+
+ RUN  v3.2.4 C:/laragon/www/Project-Bubbles/packages/memory-core
+
+ ✓ src/index.test.ts (1 test) 3ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  15:53:37
+   Duration  3.57s (transform 77ms, setup 0ms, collect 85ms, tests 3ms, environment 0ms, prepare 762ms)
+

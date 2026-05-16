@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+release
+dist-electron
+coverage
+*.local
+.env
+test-output.jpeg

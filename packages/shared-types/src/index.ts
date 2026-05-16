@@ -8,3 +8,5 @@ export type VersionedChannel = z.infer<typeof versionedChannelSchema>;
 export function hello(): string {
 	return "hello";
 }
+
+export * from "./image-gen.js";

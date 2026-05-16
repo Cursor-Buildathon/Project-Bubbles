@@ -1,0 +1,14 @@
+
+> @bubbles/renderer@0.0.0 test C:\laragon\www\Project-Bubbles\apps\renderer
+> vitest run
+
+
+ RUN  v3.2.4 C:/laragon/www/Project-Bubbles/apps/renderer
+
+ ✓ src/strings.test.ts (1 test) 2ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  15:53:43
+   Duration  10.92s (transform 35ms, setup 0ms, collect 59ms, tests 2ms, environment 10.43s, prepare 119ms)
+
