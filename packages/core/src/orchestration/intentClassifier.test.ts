@@ -15,6 +15,8 @@ describe('classifyIntent', () => {
     ['Render an illustration of a tiny robot florist', 'creative.image', 'creative-minimax-helper'],
     ['Create a poster for a jazz night', 'creative.image', 'creative-minimax-helper'],
     ['Make a short song for a product launch', 'creative.music', 'creative-minimax-helper'],
+    ['Generate a video of waves rolling over black sand', 'creative.video', 'creative-minimax-helper'],
+    ['Render a short film about a lantern in the rain', 'creative.video', 'creative-minimax-helper'],
     ['Build a landing page for my bakery', 'coding.landing_page', 'coding-agent']
   ])('classifies "%s"', (userText, taskType, agentId) => {
     expect(classifyIntent(userText)).toMatchObject({ taskType, suggestedAgentId: agentId });

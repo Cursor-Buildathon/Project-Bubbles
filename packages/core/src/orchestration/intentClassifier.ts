@@ -17,6 +17,10 @@ export function classifyIntent(userText: string): IntentClassification {
     return intent('creative.image', 'creative-minimax-helper', 0.86);
   }
 
+  if (/\b(generate|make|create|render)\b.*\b(video|clip|animation|short film|film)\b/.test(text)) {
+    return intent('creative.video', 'creative-minimax-helper', 0.86);
+  }
+
   if (/\b(generate|make|create)\b.*\b(music|song|track|audio|background music|theme)\b/.test(text)) {
     return intent('creative.music', 'creative-minimax-helper', 0.84);
   }
@@ -25,7 +29,7 @@ export function classifyIntent(userText: string): IntentClassification {
     return intent('coding.landing_page', 'coding-agent', 0.84);
   }
 
-  if (/\b(voice|tts|audio|image|vision|music|song|generate)\b/.test(text)) {
+  if (/\b(voice|tts|audio|image|vision|music|song|video|clip|animation|generate)\b/.test(text)) {
     return intent('creative.minimax', 'creative-minimax-helper', 0.78);
   }
 

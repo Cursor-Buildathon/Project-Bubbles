@@ -552,12 +552,14 @@ button {
   overflow: hidden;
 }
 
-.artifact-card--image {
+.artifact-card--image,
+.artifact-card--video {
   background: #ffffff;
   margin: 0;
 }
 
-.artifact-card--image img {
+.artifact-card--image img,
+.artifact-card--video video {
   aspect-ratio: 16 / 9;
   display: block;
   object-fit: cover;
@@ -565,6 +567,7 @@ button {
 }
 
 .artifact-card--image figcaption,
+.artifact-card--video figcaption,
 .artifact-card--audio span,
 .artifact-card--site {
   color: #14312f;
@@ -573,11 +576,13 @@ button {
 }
 
 .artifact-card--image figcaption,
+.artifact-card--video figcaption,
 .artifact-card--audio {
   padding: 8px;
 }
 
-.artifact-card--image figcaption {
+.artifact-card--image figcaption,
+.artifact-card--video figcaption {
   display: flex;
   align-items: center;
   justify-content: space-between;

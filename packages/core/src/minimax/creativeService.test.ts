@@ -143,6 +143,228 @@ describe('createMiniMaxCreativeService', () => {
     );
   });
 
+  it('generates video artifacts through the async MiniMax video API', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task_id: 'task-123', base_resp: { status_code: 0, status_msg: 'success' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task_id: 'task-123', status: 'Processing', base_resp: { status_code: 0, status_msg: 'success' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task_id: 'task-123',
+          status: 'Success',
+          file_id: 'file-456',
+          base_resp: { status_code: 0, status_msg: 'success' }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          file: { file_id: 'file-456', download_url: 'https://download.example/video.mp4' },
+          base_resp: { status_code: 0, status_msg: 'success' }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => Buffer.from('mp4-bytes')
+      });
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const service = createMiniMaxCreativeService({
+      apiKey: 'sk-cp-token',
+      fetch: fetchMock,
+      sleep,
+      videoPollIntervalMs: 0
+    });
+
+    const result = await service.run({
+      artifactDir,
+      fixture: false,
+      kind: 'video',
+      prompt: 'waves rolling over black sand'
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      artifact: {
+        kind: 'video',
+        path: join(artifactDir, 'video.mp4')
+      },
+      text: 'The video is ready.'
+    });
+    await expect(readFile(join(artifactDir, 'video.mp4'), 'utf8')).resolves.toBe('mp4-bytes');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://api.minimax.io/v1/video_generation',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-cp-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-Hailuo-2.3',
+          prompt: 'waves rolling over black sand',
+          duration: 6,
+          resolution: '768P',
+          prompt_optimizer: false
+        })
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://api.minimax.io/v1/query/video_generation?task_id=task-123',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'https://api.minimax.io/v1/files/retrieve?file_id=file-456',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      'https://download.example/video.mp4',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(sleep).toHaveBeenCalledWith(0);
+  });
+
+  it('accepts numeric MiniMax video task and file ids', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task_id: 123, base_resp: { status_code: 0, status_msg: 'success' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task_id: 123, status: 'Success', file_id: 456, base_resp: { status_code: 0, status_msg: 'success' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          file: { file_id: 456, download_url: 'https://download.example/numeric-video.mp4' },
+          base_resp: { status_code: 0, status_msg: 'success' }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => Buffer.from('numeric-mp4-bytes')
+      });
+    const service = createMiniMaxCreativeService({
+      apiKey: 'sk-cp-token',
+      fetch: fetchMock,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      videoPollIntervalMs: 0
+    });
+
+    await expect(
+      service.run({
+        artifactDir,
+        fixture: false,
+        kind: 'video',
+        prompt: 'numeric ids'
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      artifact: {
+        kind: 'video',
+        path: join(artifactDir, 'video.mp4')
+      }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://api.minimax.io/v1/query/video_generation?task_id=123',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://api.minimax.io/v1/files/retrieve?file_id=456',
+      expect.objectContaining({ method: 'GET' })
+    );
+  });
+
+  it('returns the provider rejection reason when video task creation is not accepted', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ base_resp: { status_code: 1008, status_msg: 'insufficient balance for sk-cp-secret' } })
+    });
+    const service = createMiniMaxCreativeService({ apiKey: 'sk-cp-token', fetch: fetchMock });
+
+    const result = await service.run({
+      artifactDir,
+      fixture: false,
+      kind: 'video',
+      prompt: 'provider rejected video'
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('MiniMax video generation failed: insufficient balance')
+    });
+    expect(result.ok).toBe(false);
+
+    if (!result.ok) {
+      expect(result.error).not.toContain('sk-cp-secret');
+    }
+  });
+
+  it('returns a redacted error when video generation fails', async () => {
+    const artifactDir = await makeTempDir();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task_id: 'task-123', base_resp: { status_code: 0, status_msg: 'success' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task_id: 'task-123',
+          status: 'Fail',
+          base_resp: { status_code: 1001, status_msg: 'bad key sk-cp-secret' }
+        })
+      });
+    const service = createMiniMaxCreativeService({
+      apiKey: 'sk-cp-token',
+      fetch: fetchMock,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      videoPollIntervalMs: 0
+    });
+
+    await expect(
+      service.run({
+        artifactDir,
+        fixture: false,
+        kind: 'video',
+        prompt: 'failing video'
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.not.stringContaining('sk-cp-secret')
+    });
+  });
+
   it('writes deterministic fixture artifacts for CI', async () => {
     const artifactDir = await makeTempDir();
     const service = createMiniMaxCreativeService({
@@ -163,6 +385,22 @@ describe('createMiniMaxCreativeService', () => {
         kind: 'image',
         path: join(artifactDir, 'image.svg')
       }
+    });
+
+    await expect(
+      service.run({
+        artifactDir,
+        fixture: true,
+        kind: 'video',
+        prompt: 'fixture video'
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      artifact: {
+        kind: 'video',
+        path: join(artifactDir, 'video.mp4')
+      },
+      text: 'The video is ready.'
     });
   });
 });

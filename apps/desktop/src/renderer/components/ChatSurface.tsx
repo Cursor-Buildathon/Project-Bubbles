@@ -73,38 +73,60 @@ export function ChatSurface({ chatEnabled, draft, messages, onDraftChange, onSub
 function ArtifactCard({ artifact }: { artifact: NonNullable<ChatMessage['artifacts']>[number] }) {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  if (artifact.kind === 'image' && artifact.path) {
-    async function handleDownload() {
-      if (!artifact.path || downloadStatus === 'saving') {
-        return;
-      }
-
-      setDownloadStatus('saving');
-      const result = await window.bubbles?.capabilities?.downloadArtifact?.({
-        path: artifact.path,
-        title: artifact.title
-      });
-      setDownloadStatus(result?.ok ? 'saved' : 'error');
+  async function handleDownload() {
+    if (!artifact.path || downloadStatus === 'saving') {
+      return;
     }
 
+    setDownloadStatus('saving');
+    const result = await window.bubbles?.capabilities?.downloadArtifact?.({
+      path: artifact.path,
+      title: artifact.title
+    });
+    setDownloadStatus(result?.ok ? 'saved' : 'error');
+  }
+
+  const downloadButton = artifact.path ? (
+    <button
+      aria-label={`Download generated ${artifact.kind}`}
+      className="artifact-card__download"
+      disabled={downloadStatus === 'saving'}
+      onClick={() => void handleDownload()}
+      type="button"
+    >
+      <Download size={14} aria-hidden="true" />
+      <span>{downloadStatus === 'saving' ? 'Saving' : 'Download'}</span>
+    </button>
+  ) : null;
+  const downloadStatusMessage = (
+    <>
+      {downloadStatus === 'saved' ? <small className="artifact-card__status">Saved to Downloads.</small> : null}
+      {downloadStatus === 'error' ? <small className="artifact-card__status artifact-card__status--error">Download failed.</small> : null}
+    </>
+  );
+
+  if (artifact.kind === 'image' && artifact.path) {
     return (
       <figure className="artifact-card artifact-card--image">
         <img alt="Generated image artifact" src={artifact.url ?? toArtifactUrl(artifact.path)} />
         <figcaption>
           <span>{artifact.title ?? 'Generated image'}</span>
-          <button
-            aria-label="Download generated image"
-            className="artifact-card__download"
-            disabled={downloadStatus === 'saving'}
-            onClick={() => void handleDownload()}
-            type="button"
-          >
-            <Download size={14} aria-hidden="true" />
-            <span>{downloadStatus === 'saving' ? 'Saving' : 'Download'}</span>
-          </button>
+          {downloadButton}
         </figcaption>
-        {downloadStatus === 'saved' ? <small className="artifact-card__status">Saved to Downloads.</small> : null}
-        {downloadStatus === 'error' ? <small className="artifact-card__status artifact-card__status--error">Download failed.</small> : null}
+        {downloadStatusMessage}
+      </figure>
+    );
+  }
+
+  if (artifact.kind === 'video' && artifact.path) {
+    return (
+      <figure className="artifact-card artifact-card--video">
+        <video aria-label="Generated video artifact" controls src={artifact.url ?? toArtifactUrl(artifact.path)} />
+        <figcaption>
+          <span>{artifact.title ?? 'Generated video'}</span>
+          {downloadButton}
+        </figcaption>
+        {downloadStatusMessage}
       </figure>
     );
   }

@@ -14,7 +14,7 @@ type AvatarState =
 interface ChatMessage {
   id: number;
   author: 'user' | 'bubbles';
-  artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string; title?: string }>;
+  artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site' | 'video'; path?: string; url?: string; title?: string }>;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
   speakOnArrival?: boolean;
   text: string;

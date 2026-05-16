@@ -69,7 +69,7 @@ describe('ChatSurface', () => {
     expect(screen.getByText('Official docs.')).toBeInTheDocument();
   });
 
-  it('renders image, audio, and site artifacts under assistant messages', () => {
+  it('renders image, video, audio, and site artifacts under assistant messages', () => {
     render(
       <ChatSurface
         chatEnabled
@@ -81,6 +81,7 @@ describe('ChatSurface', () => {
             text: 'The artifacts are ready.',
             artifacts: [
               { id: 'image-1', kind: 'image', path: '/tmp/image.svg' },
+              { id: 'video-1', kind: 'video', path: '/tmp/video.mp4' },
               { id: 'audio-1', kind: 'audio', path: '/tmp/music.mp3' },
               { id: 'site-1', kind: 'site', url: 'http://127.0.0.1:4173' }
             ]
@@ -98,6 +99,10 @@ describe('ChatSurface', () => {
     expect(screen.getByLabelText('Generated music artifact')).toHaveAttribute(
       'src',
       `bubbles-artifact://local/${encodeURIComponent('/tmp/music.mp3')}`
+    );
+    expect(screen.getByLabelText('Generated video artifact')).toHaveAttribute(
+      'src',
+      `bubbles-artifact://local/${encodeURIComponent('/tmp/video.mp4')}`
     );
     expect(screen.getByRole('link', { name: 'Open generated site' })).toHaveAttribute('href', 'http://127.0.0.1:4173');
   });
@@ -137,6 +142,49 @@ describe('ChatSurface', () => {
         expect(downloadArtifact).toHaveBeenCalledWith({
           path: '/tmp/image.png',
           title: 'Neon desk'
+        })
+      );
+      expect(await screen.findByText('Saved to Downloads.')).toBeInTheDocument();
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it('downloads video artifacts from the chat card', async () => {
+    const previousBubbles = window.bubbles;
+    const downloadArtifact = vi.fn().mockResolvedValue({ ok: true, path: '/Users/dev/Downloads/Ocean clip.mp4' });
+
+    try {
+      window.bubbles = {
+        capabilities: {
+          downloadArtifact,
+          openArtifact: vi.fn()
+        }
+      } as unknown as NonNullable<typeof window.bubbles>;
+
+      render(
+        <ChatSurface
+          chatEnabled
+          draft=""
+          messages={[
+            {
+              id: 1,
+              author: 'bubbles',
+              text: 'The video is ready.',
+              artifacts: [{ id: 'video-1', kind: 'video', path: '/tmp/video.mp4', title: 'Ocean clip' }]
+            }
+          ]}
+          onDraftChange={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Download generated video' }));
+
+      await waitFor(() =>
+        expect(downloadArtifact).toHaveBeenCalledWith({
+          path: '/tmp/video.mp4',
+          title: 'Ocean clip'
         })
       );
       expect(await screen.findByText('Saved to Downloads.')).toBeInTheDocument();

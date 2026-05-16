@@ -16,7 +16,14 @@ export type VoiceEvent =
   | { type: 'voice.error'; voiceTurnId?: string; error: string; provider: string };
 
 export interface IntentClassificationV2 {
-  taskType: TaskType | 'voice.approval' | 'mcp.configure' | 'creative.image' | 'creative.music' | 'coding.landing_page';
+  taskType:
+    | TaskType
+    | 'voice.approval'
+    | 'mcp.configure'
+    | 'creative.image'
+    | 'creative.music'
+    | 'creative.video'
+    | 'coding.landing_page';
   suggestedAgentId: string;
   confidence: number;
   slots: Record<string, unknown>;
@@ -64,7 +71,7 @@ export interface CapabilityOutput {
   chatText: string;
   voiceText: string;
   citations?: Array<{ title: string; url: string; snippet?: string }>;
-  artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site'; path?: string; url?: string }>;
+  artifacts?: Array<{ id: string; kind: 'image' | 'audio' | 'site' | 'video'; path?: string; url?: string }>;
   nextStep?: string;
 }
 

@@ -120,6 +120,35 @@ describe('createFlowRouter', () => {
     });
   });
 
+  it('routes video generation through the creative service with one-shot speech metadata', async () => {
+    let requestPrompt = '';
+    const router = createFlowRouter({
+      creative: {
+        run: async (request) => {
+          requestPrompt = request.prompt;
+          return {
+            ok: true,
+            text: 'The video is ready.',
+            artifact: { id: 'video-1', kind: 'video', path: '/tmp/video.mp4' }
+          };
+        }
+      }
+    });
+
+    await expect(
+      router.route({ userText: 'Generate a video of waves rolling over black sand', activeAgentId: 'general-assistant' })
+    ).resolves.toMatchObject({
+      artifacts: [{ id: 'video-1', kind: 'video', path: '/tmp/video.mp4' }],
+      avatarState: 'celebrating',
+      handled: true,
+      message: 'The video is ready. You can download it from the chat window.',
+      taskType: 'creative.video',
+      voiceText: 'The video is ready.',
+      speakOnArrival: true
+    });
+    expect(requestPrompt).toBe('waves rolling over black sand');
+  });
+
   it('routes landing-page requests into an approval-gated sandbox workflow', async () => {
     const approvals: unknown[] = [];
     const router = createFlowRouter({

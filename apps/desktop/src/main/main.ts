@@ -16,6 +16,7 @@ import {
   createMemoryExtractor,
   createMiniMaxCreativeService,
   createMiniMaxTtsService,
+  classifyIntent,
   createResearchService,
   createStaticSiteServer,
   createTavilyRemoteMcpClient,
@@ -105,6 +106,7 @@ const voiceEnabled = process.env.BUBBLES_VOICE_ENABLED !== 'false';
 const voiceApprovalsEnabled = voiceEnabled && process.env.BUBBLES_VOICE_APPROVALS_ENABLED !== 'false';
 const creativeImageEnabled = process.env.BUBBLES_CREATIVE_IMAGE !== 'false';
 const creativeMusicEnabled = process.env.BUBBLES_CREATIVE_MUSIC !== 'false';
+const creativeVideoEnabled = process.env.BUBBLES_CREATIVE_VIDEO !== 'false';
 const landingPageEnabled = process.env.BUBBLES_CODING_LANDING_PAGE !== 'false';
 const minimaxMediaFixture = shouldUseMiniMaxMediaFixture(process.env);
 
@@ -993,28 +995,49 @@ async function routeCapabilityFlow(userText: string) {
       run: (query) => runTavilyResearch(query)
     }
   });
+  const routeIntent = classifyIntent(userText);
+  const workingMessageId = routeIntent.taskType === 'creative.video' ? Date.now() + 1 : undefined;
+
+  if (workingMessageId) {
+    appState.messages = [
+      ...appState.messages,
+      { id: workingMessageId - 1, author: 'user', text: userText },
+      {
+        id: workingMessageId,
+        author: 'bubbles',
+        text: "I'm generating your video. This can take a few minutes."
+      }
+    ];
+    appState.avatarState = 'working';
+    broadcastAppState();
+  }
+
   const result = await router.route({
     activeAgentId: appState.activeAgent?.id ?? 'general-assistant',
     userText
   });
 
   if (!result.handled) {
+    if (workingMessageId) {
+      appState.messages = appState.messages.filter((message) => message.id !== workingMessageId && message.id !== workingMessageId - 1);
+      appState.avatarState = 'idle';
+      broadcastAppState();
+    }
     return false;
   }
 
-  appState.messages = [
-    ...appState.messages,
-    { id: Date.now(), author: 'user', text: userText },
-    {
-      id: Date.now() + 1,
-      author: 'bubbles',
-      artifacts: result.artifacts,
-      citations: result.citations,
-      speakOnArrival: result.speakOnArrival,
-      text: result.message,
-      voiceText: result.voiceText
-    }
-  ];
+  const bubbleMessage = {
+    id: workingMessageId ?? Date.now() + 1,
+    author: 'bubbles' as const,
+    artifacts: result.artifacts,
+    citations: result.citations,
+    speakOnArrival: result.speakOnArrival,
+    text: result.message,
+    voiceText: result.voiceText
+  };
+  appState.messages = workingMessageId
+    ? appState.messages.map((message) => (message.id === workingMessageId ? bubbleMessage : message))
+    : [...appState.messages, { id: Date.now(), author: 'user', text: userText }, bubbleMessage];
   appState.avatarState = result.avatarState;
   appState.approvals = (await approvalService?.list()) ?? appState.approvals;
   await hydrateMemoryState();
@@ -1022,11 +1045,13 @@ async function routeCapabilityFlow(userText: string) {
   return true;
 }
 
-async function runCreativeCapability(request: { kind: 'image' | 'music'; prompt: string }) {
-  const enabled = request.kind === 'image' ? creativeImageEnabled : creativeMusicEnabled;
+async function runCreativeCapability(request: { kind: 'image' | 'music' | 'video'; prompt: string }) {
+  const enabled =
+    request.kind === 'image' ? creativeImageEnabled : request.kind === 'video' ? creativeVideoEnabled : creativeMusicEnabled;
 
   if (!enabled) {
-    return { ok: false as const, error: `${request.kind === 'image' ? 'Image' : 'Music'} generation is disabled.` };
+    const label = request.kind === 'image' ? 'Image' : request.kind === 'video' ? 'Video' : 'Music';
+    return { ok: false as const, error: `${label} generation is disabled.` };
   }
 
   const apiKey = await miniMaxKeyStore?.getTokenPlanKey();

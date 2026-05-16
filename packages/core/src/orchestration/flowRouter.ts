@@ -32,7 +32,7 @@ export type FlowRouterResult =
 interface FlowRouterOptions {
   createApproval?: CreateApproval;
   creative?: {
-    run: (request: { kind: 'image' | 'music'; prompt: string }) => Promise<
+    run: (request: { kind: 'image' | 'music' | 'video'; prompt: string }) => Promise<
       | {
           ok: true;
           text: string;
@@ -85,7 +85,7 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
         };
       }
 
-      if (intent.taskType === 'creative.image' || intent.taskType === 'creative.music') {
+      if (intent.taskType === 'creative.image' || intent.taskType === 'creative.music' || intent.taskType === 'creative.video') {
         if (!creative) {
           return {
             handled: true,
@@ -96,7 +96,7 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
           };
         }
 
-        const kind = intent.taskType === 'creative.image' ? 'image' : 'music';
+        const kind = creativeKindForTask(intent.taskType);
         const response = await creative.run({ kind, prompt: extractCreativePrompt(input.userText, kind) });
 
         if (!response.ok) {
@@ -118,9 +118,11 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
           message:
             kind === 'image'
               ? 'The image is ready. You can download it from the chat window.'
+              : kind === 'video'
+                ? 'The video is ready. You can download it from the chat window.'
               : 'The music is ready. You can listen in the chat window.',
-          speakOnArrival: kind === 'image',
-          voiceText: kind === 'image' ? 'The image is ready.' : undefined
+          speakOnArrival: kind === 'image' || kind === 'video',
+          voiceText: kind === 'image' ? 'The image is ready.' : kind === 'video' ? 'The video is ready.' : undefined
         };
       }
 
@@ -186,11 +188,25 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
   };
 }
 
-function extractCreativePrompt(userText: string, kind: 'image' | 'music'): string {
+function creativeKindForTask(taskType: 'creative.image' | 'creative.music' | 'creative.video') {
+  if (taskType === 'creative.image') {
+    return 'image';
+  }
+
+  if (taskType === 'creative.video') {
+    return 'video';
+  }
+
+  return 'music';
+}
+
+function extractCreativePrompt(userText: string, kind: 'image' | 'music' | 'video'): string {
   const pattern =
     kind === 'image'
       ? /^(generate|make|create|draw|render)\s+(me\s+)?((an?|the)\s+)?(image|poster|logo|mockup|picture|illustration)\s+(of|for|about)?\s*/i
-      : /^(generate|make|create)\s+(a\s+)?(short\s+)?(music|song|track|audio|background music|theme)\s+(for|about)?\s*/i;
+      : kind === 'video'
+        ? /^(generate|make|create|render)\s+(me\s+)?((an?|the|short)\s+)?(video|clip|animation|short film|film)\s+(of|for|about)?\s*/i
+        : /^(generate|make|create)\s+(a\s+)?(short\s+)?(music|song|track|audio|background music|theme)\s+(for|about)?\s*/i;
   const directPrompt = userText.replace(pattern, '').trim();
 
   if (directPrompt && directPrompt !== userText) {
@@ -200,6 +216,11 @@ function extractCreativePrompt(userText: string, kind: 'image' | 'music'): strin
   if (kind === 'image') {
     const trailingImagePrompt = userText.replace(/^(generate|make|create|draw|render)\s+(me\s+)?((an?|the)\s+)?/i, '').trim();
     return trailingImagePrompt || userText;
+  }
+
+  if (kind === 'video') {
+    const trailingVideoPrompt = userText.replace(/^(generate|make|create|render)\s+(me\s+)?((an?|the|short)\s+)?/i, '').trim();
+    return trailingVideoPrompt || userText;
   }
 
   return directPrompt || userText;

@@ -6,9 +6,15 @@ import { createMiniMaxApiError } from './minimaxApiClient.js';
 
 const minimaxImageEndpoint = 'https://api.minimax.io/v1/image_generation';
 const minimaxMusicEndpoint = 'https://api.minimax.io/v1/music_generation';
+const minimaxVideoEndpoint = 'https://api.minimax.io/v1/video_generation';
+const minimaxVideoQueryEndpoint = 'https://api.minimax.io/v1/query/video_generation';
+const minimaxFileRetrieveEndpoint = 'https://api.minimax.io/v1/files/retrieve';
+const defaultVideoPollIntervalMs = 10_000;
+const defaultVideoMaxPolls = 60;
 
 interface ResponseLike {
-  json: () => Promise<unknown>;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+  json?: () => Promise<unknown>;
   ok: boolean;
   status: number;
   text?: () => Promise<string>;
@@ -16,7 +22,7 @@ interface ResponseLike {
 
 type FetchLike = (input: string, init: RequestInit) => Promise<ResponseLike>;
 
-export type CreativeKind = 'voice' | 'image' | 'vision' | 'music';
+export type CreativeKind = 'voice' | 'image' | 'vision' | 'music' | 'video';
 
 export interface CreativeRequest {
   kind: CreativeKind;
@@ -42,18 +48,24 @@ export function createCreativeService({ runCreativeTask }: CreativeServiceOption
 export interface MiniMaxCreativeRequest {
   artifactDir: string;
   fixture?: boolean;
-  kind: 'image' | 'music';
+  kind: 'image' | 'music' | 'video';
   prompt: string;
 }
 
 interface MiniMaxCreativeServiceOptions {
   apiKey: string;
   fetch?: FetchLike;
+  sleep?: (durationMs: number) => Promise<void>;
+  videoMaxPolls?: number;
+  videoPollIntervalMs?: number;
 }
 
 export function createMiniMaxCreativeService({
   apiKey,
-  fetch: fetchImpl = globalThis.fetch as FetchLike
+  fetch: fetchImpl = globalThis.fetch as FetchLike,
+  sleep = (durationMs) => new Promise((resolve) => setTimeout(resolve, durationMs)),
+  videoMaxPolls = defaultVideoMaxPolls,
+  videoPollIntervalMs = defaultVideoPollIntervalMs
 }: MiniMaxCreativeServiceOptions) {
   return {
     async run(request: MiniMaxCreativeRequest): Promise<CreativeResult> {
@@ -65,10 +77,21 @@ export function createMiniMaxCreativeService({
 
       try {
         if (request.kind === 'image') {
-          return generateImage({ apiKey, fetchImpl, request });
+          return await generateImage({ apiKey, fetchImpl, request });
         }
 
-        return generateMusic({ apiKey, fetchImpl, request });
+        if (request.kind === 'video') {
+          return await generateVideo({
+            apiKey,
+            fetchImpl,
+            maxPolls: videoMaxPolls,
+            pollIntervalMs: videoPollIntervalMs,
+            request,
+            sleep
+          });
+        }
+
+        return await generateMusic({ apiKey, fetchImpl, request });
       } catch (error) {
         return {
           ok: false,
@@ -108,7 +131,7 @@ async function generateImage({
     throw createMiniMaxApiError(response.status, body, 'MiniMax image generation failed');
   }
 
-  const body = responseToRecord(await response.json());
+  const body = responseToRecord(await parseJson(response, 'MiniMax image generation returned no response body.'));
   const imageBase64 = findString(body, ['data.image_base64', 'data.image', 'image_base64', 'image']);
 
   if (!imageBase64) {
@@ -158,7 +181,7 @@ async function generateMusic({
     throw createMiniMaxApiError(response.status, body, 'MiniMax music generation failed');
   }
 
-  const body = responseToRecord(await response.json());
+  const body = responseToRecord(await parseJson(response, 'MiniMax music generation returned no response body.'));
   const audioHex = findString(body, ['data.audio', 'audio', 'data.audio_hex', 'audio_hex']);
 
   if (!audioHex) {
@@ -181,6 +204,176 @@ async function generateMusic({
   };
 }
 
+async function generateVideo({
+  apiKey,
+  fetchImpl,
+  maxPolls,
+  pollIntervalMs,
+  request,
+  sleep
+}: {
+  apiKey: string;
+  fetchImpl: FetchLike;
+  maxPolls: number;
+  pollIntervalMs: number;
+  request: MiniMaxCreativeRequest;
+  sleep: (durationMs: number) => Promise<void>;
+}): Promise<CreativeResult> {
+  const createResponse = await fetchImpl(minimaxVideoEndpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'MiniMax-Hailuo-2.3',
+      prompt: request.prompt,
+      duration: 6,
+      resolution: '768P',
+      prompt_optimizer: false
+    })
+  });
+
+  if (!createResponse.ok) {
+    const body = createResponse.text ? await createResponse.text() : '';
+    throw createMiniMaxApiError(createResponse.status, body, 'MiniMax video generation failed');
+  }
+
+  const createBody = responseToRecord(await parseJson(createResponse, 'MiniMax video generation returned no response body.'));
+  assertMiniMaxBaseRespOk(createBody, 'MiniMax video generation failed');
+  const taskId = findString(createBody, ['task_id', 'data.task_id']);
+
+  if (!taskId) {
+    throw new Error('MiniMax video generation returned no task id.');
+  }
+
+  const fileId = await pollVideoGeneration({
+    apiKey,
+    fetchImpl,
+    maxPolls,
+    pollIntervalMs,
+    sleep,
+    taskId
+  });
+  const downloadUrl = await retrieveVideoDownloadUrl({ apiKey, fetchImpl, fileId });
+  const videoResponse = await fetchImpl(downloadUrl, {
+    method: 'GET'
+  });
+
+  if (!videoResponse.ok) {
+    const body = videoResponse.text ? await videoResponse.text() : '';
+    throw createMiniMaxApiError(videoResponse.status, body, 'MiniMax video download failed');
+  }
+
+  if (!videoResponse.arrayBuffer) {
+    throw new Error('MiniMax video download returned no video data.');
+  }
+
+  const artifact = artifactFor(request, false);
+
+  if (!artifact.path) {
+    return { ok: false, error: 'Artifact path could not be resolved.' };
+  }
+
+  await writeFile(artifact.path, Buffer.from(await videoResponse.arrayBuffer()));
+
+  return {
+    ok: true,
+    artifact,
+    artifactPath: artifact.path,
+    text: 'The video is ready.'
+  };
+}
+
+async function pollVideoGeneration({
+  apiKey,
+  fetchImpl,
+  maxPolls,
+  pollIntervalMs,
+  sleep,
+  taskId
+}: {
+  apiKey: string;
+  fetchImpl: FetchLike;
+  maxPolls: number;
+  pollIntervalMs: number;
+  sleep: (durationMs: number) => Promise<void>;
+  taskId: string;
+}) {
+  for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+    const queryUrl = `${minimaxVideoQueryEndpoint}?task_id=${encodeURIComponent(taskId)}`;
+    const queryResponse = await fetchImpl(queryUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`
+      }
+    });
+
+    if (!queryResponse.ok) {
+      const body = queryResponse.text ? await queryResponse.text() : '';
+      throw createMiniMaxApiError(queryResponse.status, body, 'MiniMax video generation status check failed');
+    }
+
+    const queryBody = responseToRecord(await parseJson(queryResponse, 'MiniMax video generation status check returned no response body.'));
+    assertMiniMaxBaseRespOk(queryBody, 'MiniMax video generation status check failed');
+    const status = findString(queryBody, ['status', 'data.status'])?.toLowerCase();
+
+    if (status === 'success') {
+      const fileId = findString(queryBody, ['file_id', 'data.file_id', 'file.file_id']);
+
+      if (!fileId) {
+        throw new Error('MiniMax video generation finished without a file id.');
+      }
+
+      return fileId;
+    }
+
+    if (status === 'fail' || status === 'failed') {
+      const reason = findString(queryBody, ['base_resp.status_msg', 'error', 'message', 'data.error']);
+      throw new Error(`MiniMax video generation failed${reason ? `: ${reason}` : '.'}`);
+    }
+
+    if (attempt < maxPolls - 1) {
+      await sleep(pollIntervalMs);
+    }
+  }
+
+  throw new Error('MiniMax video generation timed out before the video was ready.');
+}
+
+async function retrieveVideoDownloadUrl({
+  apiKey,
+  fetchImpl,
+  fileId
+}: {
+  apiKey: string;
+  fetchImpl: FetchLike;
+  fileId: string;
+}) {
+  const retrieveUrl = `${minimaxFileRetrieveEndpoint}?file_id=${encodeURIComponent(fileId)}`;
+  const retrieveResponse = await fetchImpl(retrieveUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`
+    }
+  });
+
+  if (!retrieveResponse.ok) {
+    const body = retrieveResponse.text ? await retrieveResponse.text() : '';
+    throw createMiniMaxApiError(retrieveResponse.status, body, 'MiniMax video file retrieve failed');
+  }
+
+  const retrieveBody = responseToRecord(await parseJson(retrieveResponse, 'MiniMax video file retrieve returned no response body.'));
+  assertMiniMaxBaseRespOk(retrieveBody, 'MiniMax video file retrieve failed');
+  const downloadUrl = findString(retrieveBody, ['file.download_url', 'data.download_url', 'download_url']);
+
+  if (!downloadUrl) {
+    throw new Error('MiniMax video generation returned no download URL.');
+  }
+
+  return downloadUrl;
+}
+
 async function writeFixtureArtifact(request: MiniMaxCreativeRequest): Promise<CreativeResult> {
   const artifact = artifactFor(request, true);
 
@@ -190,6 +383,8 @@ async function writeFixtureArtifact(request: MiniMaxCreativeRequest): Promise<Cr
 
   if (request.kind === 'image') {
     await writeFile(artifact.path, fixtureSvg(request.prompt), 'utf8');
+  } else if (request.kind === 'video') {
+    await writeFile(artifact.path, fixtureVideoBytes());
   } else {
     await writeFile(artifact.path, fixtureAudioBytes());
   }
@@ -198,7 +393,12 @@ async function writeFixtureArtifact(request: MiniMaxCreativeRequest): Promise<Cr
     ok: true,
     artifact,
     artifactPath: artifact.path,
-    text: request.kind === 'image' ? 'The image is ready.' : 'The music is ready.'
+    text:
+      request.kind === 'image'
+        ? 'The image is ready.'
+        : request.kind === 'video'
+          ? 'The video is ready.'
+          : 'The music is ready.'
   };
 }
 
@@ -214,6 +414,15 @@ function artifactFor(request: MiniMaxCreativeRequest, fixture: boolean): Artifac
     };
   }
 
+  if (request.kind === 'video') {
+    return {
+      id,
+      kind: 'video',
+      path: join(request.artifactDir, 'video.mp4'),
+      title: request.prompt
+    };
+  }
+
   return {
     id,
     kind: 'audio',
@@ -222,8 +431,27 @@ function artifactFor(request: MiniMaxCreativeRequest, fixture: boolean): Artifac
   };
 }
 
+async function parseJson(response: ResponseLike, missingBodyMessage: string) {
+  if (!response.json) {
+    throw new Error(missingBodyMessage);
+  }
+
+  return response.json();
+}
+
 function responseToRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function assertMiniMaxBaseRespOk(record: Record<string, unknown>, fallbackMessage: string) {
+  const statusCode = findNumber(record, ['base_resp.status_code', 'data.base_resp.status_code']);
+
+  if (statusCode === undefined || statusCode === 0) {
+    return;
+  }
+
+  const statusMessage = findString(record, ['base_resp.status_msg', 'data.base_resp.status_msg']);
+  throw new Error(`${fallbackMessage}${statusMessage ? `: ${statusMessage}` : ` (${statusCode})`}`);
 }
 
 function findString(record: Record<string, unknown>, paths: string[]) {
@@ -240,11 +468,44 @@ function findString(record: Record<string, unknown>, paths: string[]) {
       return value;
     }
 
-    if (Array.isArray(value)) {
-      const firstString = value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
 
-      if (firstString) {
-        return firstString;
+    if (Array.isArray(value)) {
+      const firstString = value.find(
+        (item): item is string | number =>
+          (typeof item === 'string' && item.trim().length > 0) || (typeof item === 'number' && Number.isFinite(item))
+      );
+
+      if (firstString !== undefined) {
+        return String(firstString);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function findNumber(record: Record<string, unknown>, paths: string[]) {
+  for (const path of paths) {
+    const value = path.split('.').reduce<unknown>((current, segment) => {
+      if (!current || typeof current !== 'object') {
+        return undefined;
+      }
+
+      return (current as Record<string, unknown>)[segment];
+    }, record);
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
       }
     }
   }
@@ -289,4 +550,8 @@ function fixtureAudioBytes() {
   }
 
   return buffer;
+}
+
+function fixtureVideoBytes() {
+  return Buffer.from('bubbles-fixture-video');
 }

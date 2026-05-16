@@ -217,6 +217,62 @@ describe('useVoiceSession', () => {
     }
   });
 
+  it('speaks a completed typed video-generation message once when it replaces the working message', async () => {
+    const previousBubbles = window.bubbles;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn(() => () => undefined),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      const { rerender } = renderHook(
+        ({ latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText }) =>
+          useVoiceSession({
+            chatEnabled: true,
+            latestBubbleMessageId,
+            latestBubbleSpeakOnArrival,
+            latestBubbleText,
+            onTranscript: vi.fn()
+          }),
+        {
+          initialProps: {
+            latestBubbleMessageId: 8,
+            latestBubbleSpeakOnArrival: false,
+            latestBubbleText: "I'm generating your video. This can take a few minutes."
+          }
+        }
+      );
+
+      rerender({
+        latestBubbleMessageId: 8,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The video is ready.'
+      });
+      rerender({
+        latestBubbleMessageId: 8,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The video is ready.'
+      });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'The video is ready.', ttsId: 'tts-current' }));
+      expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
   it('asks the user to look in chat instead of speaking long assistant replies', async () => {
     const previousBubbles = window.bubbles;
     let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;

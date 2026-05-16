@@ -17,11 +17,12 @@ export type TaskType =
   | 'agent.create'
   | 'creative.image'
   | 'creative.music'
+  | 'creative.video'
   | 'creative.minimax';
 
 export interface ArtifactMetadata {
   id: string;
-  kind: 'image' | 'audio' | 'site';
+  kind: 'image' | 'audio' | 'site' | 'video';
   path?: string;
   url?: string;
   title?: string;
