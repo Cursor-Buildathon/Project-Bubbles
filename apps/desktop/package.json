@@ -1,0 +1,50 @@
+{
+	"name": "@bubbles/desktop",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"main": "out/main/index.js",
+	"scripts": {
+		"dev": "electron-vite dev",
+		"build": "electron-vite build",
+		"preview": "electron-vite preview",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@bubbles/shared-logger": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.0",
+		"@vitejs/plugin-react": "^4.3.4",
+		"@vitest/coverage-v8": "^3.0.5",
+		"electron": "^32.3.3",
+		"electron-builder": "^25.1.8",
+		"electron-vite": "^3.1.0",
+		"typescript": "~5.6.3",
+		"vite": "^6.0.11",
+		"vitest": "^3.0.5"
+	},
+	"build": {
+		"appId": "com.bubbles.desktop",
+		"productName": "Bubbles",
+		"directories": {
+			"output": "release",
+			"buildResources": "build"
+		},
+		"files": [
+			"out/**/*",
+			"package.json"
+		],
+		"win": {
+			"target": [
+				"nsis"
+			]
+		},
+		"nsis": {
+			"oneClick": false,
+			"allowToChangeInstallationDirectory": true
+		}
+	}
+}

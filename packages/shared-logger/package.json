@@ -1,0 +1,27 @@
+{
+	"name": "@bubbles/shared-logger",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		}
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"pino": "^9.6.0"
+	},
+	"devDependencies": {
+		"@vitest/coverage-v8": "^3.0.5",
+		"@types/node": "^22.10.0",
+		"typescript": "~5.6.3",
+		"vitest": "^3.0.5"
+	}
+}
