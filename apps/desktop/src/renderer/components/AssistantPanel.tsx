@@ -34,8 +34,8 @@ interface AssistantPanelProps {
   memories: MemoryItem[];
   messages: ChatMessage[];
   onActivateAgent: (agentId: string) => void;
-  onApproveApproval: (id: string) => void;
-  onCancelApproval: (id: string) => void;
+  onApproveApproval: (id: string) => Promise<void> | void;
+  onCancelApproval: (id: string) => Promise<void> | void;
   onCancelTask: (taskId: string) => void;
   onClearMemory: () => void;
   onConnectorDisconnect: (id: string) => void;
@@ -43,7 +43,7 @@ interface AssistantPanelProps {
   onConnectorUpdate: (id: string, input: Partial<ConnectorConfig>) => void;
   onClose: () => void;
   onCreateAgent: (draft: AgentBirthDraft) => Promise<AgentProfile>;
-  onDenyApproval: (id: string) => void;
+  onDenyApproval: (id: string) => Promise<void> | void;
   onDraftChange: (value: string) => void;
   onPreviewAgentBirth: (request: string) => Promise<AgentBirthDraft>;
   onSetAvatarState: (state: AvatarState) => void;

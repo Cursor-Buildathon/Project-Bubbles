@@ -251,15 +251,15 @@ export function App() {
   }
 
   function handleApproveApproval(id: string) {
-    void window.bubbles?.approvals?.approve(id).then(refreshState);
+    return window.bubbles?.approvals?.approve(id).then(refreshState) ?? Promise.resolve();
   }
 
   function handleDenyApproval(id: string) {
-    void window.bubbles?.approvals?.deny(id).then(refreshState);
+    return window.bubbles?.approvals?.deny(id).then(refreshState) ?? Promise.resolve();
   }
 
   function handleCancelApproval(id: string) {
-    void window.bubbles?.approvals?.cancel(id).then(refreshState);
+    return window.bubbles?.approvals?.cancel(id).then(refreshState) ?? Promise.resolve();
   }
 
   function handleConnectorUpdate(id: string, input: Partial<ConnectorConfig>) {

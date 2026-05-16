@@ -1231,6 +1231,54 @@ button {
   font-weight: 700;
 }
 
+.approval-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 22, 24, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.approval-dialog {
+  display: grid;
+  gap: 12px;
+  width: min(640px, 100%);
+  max-height: min(82vh, 720px);
+  border: 1px solid rgba(24, 34, 38, 0.14);
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(12, 22, 24, 0.24);
+}
+
+.approval-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.approval-dialog__header h2 {
+  margin: 0;
+  color: #1d2c30;
+  font-size: 1.1rem;
+}
+
+.approval-dialog__header span {
+  border: 1px solid rgba(24, 34, 38, 0.1);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #edf7f4;
+  color: #2c5b51;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .approval-panel .approval-stack {
   position: static;
   max-height: none;
@@ -1252,6 +1300,12 @@ button {
   z-index: 3;
   max-height: min(52%, 340px);
   overflow: auto;
+}
+
+.approval-dialog .approval-stack {
+  position: static;
+  max-height: none;
+  overflow: visible;
 }
 
 .approval-card,
@@ -1302,6 +1356,13 @@ button {
   font-size: 0.72rem;
 }
 
+.approval-card__status {
+  margin: 0;
+  color: #2c5b51;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
 .approval-button,
 .connector-enable-button {
   display: inline-flex;
@@ -1325,6 +1386,12 @@ button {
 
 .approval-button--deny {
   color: #753131;
+}
+
+.approval-button:disabled,
+.approval-card .icon-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 .connector-row__main {

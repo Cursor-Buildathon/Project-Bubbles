@@ -20,8 +20,13 @@ export function registerApprovalIpc({ approvalService, onApprovalResolved, onCha
   });
   ipcMain.handle('approvals:approve', async (_event, id: string) => {
     const approval = await approvalService.approve(id);
-    await onApprovalResolved?.(approval);
-    return changed();
+    const approvals = await changed();
+
+    void Promise.resolve(onApprovalResolved?.(approval)).catch((error) => {
+      console.error('Approval follow-up failed:', error);
+    });
+
+    return approvals;
   });
   ipcMain.handle('approvals:deny', async (_event, id: string) => {
     await approvalService.deny(id);

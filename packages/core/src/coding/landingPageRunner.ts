@@ -1,13 +1,31 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join, posix, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { type ArtifactMetadata } from '../shared/types.js';
 
+const allowedGeneratedFilePaths = new Set(['index.html', 'src.css', 'src.js', 'package.json']);
+const requiredGeneratedFilePaths = ['index.html', 'src.css', 'package.json'];
+
+export interface LandingPageFile {
+  path: string;
+  content: string;
+}
+
 export interface LandingPageRequest {
+  changeRequest?: string;
+  previousFiles?: LandingPageFile[];
   request: string;
 }
+
+export interface LandingPageCodeInput {
+  changeRequest?: string;
+  previousFiles?: LandingPageFile[];
+  request: string;
+}
+
+export type LandingPageCodeGenerator = (input: LandingPageCodeInput) => Promise<{ files: LandingPageFile[] }>;
 
 export interface LandingPageCheck {
   name: string;
@@ -32,24 +50,23 @@ export interface WorkflowCommand {
 }
 
 interface LandingPageRunnerOptions {
+  generateCode: LandingPageCodeGenerator;
   sandboxRoot: string;
 }
 
-export function createLandingPageRunner({ sandboxRoot }: LandingPageRunnerOptions) {
+export function createLandingPageRunner({ generateCode, sandboxRoot }: LandingPageRunnerOptions) {
   return {
     async generate(input: LandingPageRequest): Promise<LandingPageGenerateResult> {
       const siteId = stableSiteId(input.request);
       const siteDir = resolve(sandboxRoot, siteId);
       assertSandboxPath(sandboxRoot, siteDir);
-      await mkdir(join(siteDir, 'scripts'), { recursive: true });
-
-      const html = landingPageHtml(input.request);
-      await writeFile(join(siteDir, 'index.html'), html, 'utf8');
-      await writeFile(join(siteDir, 'src.css'), landingPageCss(), 'utf8');
-      await writeFile(join(siteDir, 'package.json'), packageJson(), 'utf8');
-      await writeFile(join(siteDir, 'scripts', 'accessibility-check.mjs'), accessibilityCheckScript(), 'utf8');
-
-      const checks = checkLandingPageHtml(html);
+      const code = await generateCode({
+        changeRequest: input.changeRequest,
+        previousFiles: input.previousFiles,
+        request: input.request
+      });
+      const normalized = normalizeGeneratedFiles(code.files);
+      const checks = checkLandingPageFiles(normalized);
       const failed = checks.filter((check) => !check.ok);
 
       if (failed.length) {
@@ -59,6 +76,17 @@ export function createLandingPageRunner({ sandboxRoot }: LandingPageRunnerOption
           checks
         };
       }
+
+      await rm(siteDir, { recursive: true, force: true });
+      await mkdir(join(siteDir, 'scripts'), { recursive: true });
+
+      for (const file of normalized) {
+        const filePath = join(siteDir, file.path);
+        assertSandboxPath(siteDir, filePath);
+        await writeFile(filePath, file.content, 'utf8');
+      }
+
+      await writeFile(join(siteDir, 'scripts', 'accessibility-check.mjs'), accessibilityCheckScript(), 'utf8');
 
       return {
         ok: true,
@@ -72,6 +100,17 @@ export function createLandingPageRunner({ sandboxRoot }: LandingPageRunnerOption
         siteDir
       };
     }
+  };
+}
+
+export function createMiniMaxLandingPageCodeGenerator({
+  generateJson
+}: {
+  generateJson: (prompt: string) => Promise<unknown>;
+}): LandingPageCodeGenerator {
+  return async (input) => {
+    const body = await generateJson(createLandingPageCodePrompt(input));
+    return parseLandingPageCodeResponse(body);
   };
 }
 
@@ -173,8 +212,67 @@ function stableSiteId(request: string) {
   return createHash('sha1').update(request).digest('hex').slice(0, 10);
 }
 
-function checkLandingPageHtml(html: string): LandingPageCheck[] {
+function normalizeGeneratedFiles(files: LandingPageFile[]) {
+  const normalized: LandingPageFile[] = [];
+  const seen = new Set<string>();
+
+  for (const file of files) {
+    const path = normalizeGeneratedPath(file.path);
+
+    if (!path || !allowedGeneratedFilePaths.has(path)) {
+      return [
+        {
+          path: '__invalid__',
+          content: `Generated file path is not allowed: ${file.path}`
+        }
+      ];
+    }
+
+    if (seen.has(path)) {
+      return [
+        {
+          path: '__invalid__',
+          content: `Generated file path is duplicated: ${path}`
+        }
+      ];
+    }
+
+    seen.add(path);
+    normalized.push({ path, content: file.content });
+  }
+
+  return normalized;
+}
+
+function normalizeGeneratedPath(path: string) {
+  const normalized = posix.normalize(path.replaceAll('\\', '/').replace(/^\.\//, ''));
+
+  if (normalized.startsWith('../') || normalized === '..' || normalized.startsWith('/')) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function checkLandingPageFiles(files: LandingPageFile[]): LandingPageCheck[] {
+  const fileMap = new Map(files.map((file) => [file.path, file.content]));
+  const invalidFile = files.find((file) => file.path === '__invalid__');
+  const html = fileMap.get('index.html') ?? '';
+  const css = fileMap.get('src.css') ?? '';
+  const js = fileMap.get('src.js') ?? '';
+  const packageFile = fileMap.get('package.json') ?? '';
+
   return [
+    {
+      name: 'files.allowlist',
+      ok: !invalidFile,
+      message: invalidFile?.content ?? 'All generated files must stay inside the landing-page allowlist.'
+    },
+    {
+      name: 'files.required',
+      ok: requiredGeneratedFilePaths.every((path) => fileMap.has(path)),
+      message: `The generated page must include ${requiredGeneratedFilePaths.join(', ')}.`
+    },
     {
       name: 'html.lang',
       ok: /<html\s+lang="en"/i.test(html),
@@ -194,68 +292,26 @@ function checkLandingPageHtml(html: string): LandingPageCheck[] {
       name: 'label.form',
       ok: /<label[\s>]/i.test(html),
       message: 'The generated page needs a visible form label.'
+    },
+    {
+      name: 'security.remote_script',
+      ok: !/<script[^>]+src=["']https?:\/\//i.test(html) && !/\bimport\s+["']https?:\/\//i.test(js),
+      message: 'Remote scripts are not allowed in generated landing pages.'
+    },
+    {
+      name: 'security.remote_font',
+      ok:
+        !/<link[^>]+href=["']https?:\/\/[^"']*(font|typekit|googleapis|gstatic)/i.test(html) &&
+        !/@import\s+url\(["']?https?:\/\//i.test(css) &&
+        !/@font-face[\s\S]*https?:\/\//i.test(css),
+      message: 'Remote fonts are not allowed in generated landing pages.'
+    },
+    {
+      name: 'package.safe_vite',
+      ok: isSafeVitePackageJson(packageFile),
+      message: 'The generated package.json must use only the approved Vite build scripts and dependency.'
     }
   ];
-}
-
-function landingPageHtml(request: string) {
-  const title = titleFromRequest(request);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
-    <link rel="stylesheet" href="/src.css" />
-  </head>
-  <body>
-    <main>
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Local preview</p>
-          <h1>${title}</h1>
-          <p class="lede">A crisp landing page generated in a sandbox for: ${escapeHtml(request)}</p>
-          <a href="#contact" class="button">Start a conversation</a>
-        </div>
-        <img alt="${title} preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='420'%3E%3Crect width='640' height='420' fill='%232ec4b6'/%3E%3Ccircle cx='420' cy='150' r='95' fill='%23f6f3df'/%3E%3Cpath d='M70 320h500' stroke='%23102026' stroke-width='22'/%3E%3C/svg%3E" />
-      </section>
-      <section class="features" aria-label="Highlights">
-        <article><h2>Clear promise</h2><p>Lead with the offer and reduce decision friction.</p></article>
-        <article><h2>Fast scan</h2><p>Short sections make the page easy to review.</p></article>
-        <article><h2>Ready to refine</h2><p>Ask Bubbles for copy, layout, or color changes.</p></article>
-      </section>
-      <form id="contact" class="contact">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" placeholder="you@example.com" />
-        <button type="submit">Request details</button>
-      </form>
-    </main>
-  </body>
-</html>
-`;
-}
-
-function landingPageCss() {
-  return `:root { color: #102026; background: #f7f7ee; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-body { margin: 0; }
-main { min-height: 100vh; }
-.hero { align-items: center; display: grid; gap: 48px; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr); padding: 72px clamp(24px, 6vw, 96px) 40px; }
-.eyebrow { color: #586f6b; font-size: 0.82rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
-h1 { font-size: clamp(2.4rem, 6vw, 5.5rem); line-height: 0.95; margin: 0; max-width: 820px; }
-.lede { color: #314541; font-size: 1.2rem; line-height: 1.55; max-width: 620px; }
-.button, button { background: #102026; border: 0; color: #fff; display: inline-flex; font-weight: 700; padding: 14px 18px; text-decoration: none; }
-img { border-radius: 8px; max-width: 100%; }
-.features { background: #102026; color: #f7f7ee; display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.features article { padding: 28px; }
-.features h2 { font-size: 1rem; }
-.contact { display: grid; gap: 10px; max-width: 460px; padding: 40px clamp(24px, 6vw, 96px); }
-input { border: 1px solid #b7c4bd; font: inherit; padding: 12px; }
-@media (max-width: 760px) { .hero, .features { grid-template-columns: 1fr; } }
-`;
-}
-
-function packageJson() {
-  return `${JSON.stringify({ private: true, scripts: { build: 'vite build', dev: 'vite --host 127.0.0.1' }, devDependencies: { vite: '^5.4.21' } }, null, 2)}\n`;
 }
 
 function accessibilityCheckScript() {
@@ -276,12 +332,80 @@ console.log('Accessibility checks passed.');
 `;
 }
 
-function titleFromRequest(request: string) {
-  return escapeHtml(request.replace(/^(build|make|create|generate)\s+(a\s+)?(landing page|webpage|web page|site|website)\s+(for|about)?\s*/i, '').trim() || 'Sandbox Landing Page');
+function isSafeVitePackageJson(content: string) {
+  try {
+    const parsed = JSON.parse(content) as {
+      dependencies?: Record<string, unknown>;
+      devDependencies?: Record<string, unknown>;
+      scripts?: Record<string, unknown>;
+    };
+    const dependencyNames = Object.keys(parsed.dependencies ?? {});
+    const devDependencyNames = Object.keys(parsed.devDependencies ?? {});
+
+    return (
+      parsed.scripts?.build === 'vite build' &&
+      parsed.scripts?.dev === 'vite --host 127.0.0.1' &&
+      dependencyNames.length === 0 &&
+      devDependencyNames.length === 1 &&
+      devDependencyNames[0] === 'vite'
+    );
+  } catch {
+    return false;
+  }
 }
 
-function escapeHtml(value: string) {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+function createLandingPageCodePrompt(input: LandingPageCodeInput) {
+  const previousFiles = input.previousFiles?.length
+    ? `\nPrevious files to revise:\n${input.previousFiles.map((file) => `FILE: ${file.path}\n${file.content}`).join('\n\n')}`
+    : '';
+  const changeRequest = input.changeRequest ? `\nRevision request: ${input.changeRequest}` : '';
+
+  return `Create a polished static Vite landing page for this user request:
+${input.request}${changeRequest}${previousFiles}
+
+Return JSON only with this shape:
+{
+  "files": [
+    { "path": "index.html", "content": "..." },
+    { "path": "src.css", "content": "..." },
+    { "path": "src.js", "content": "..." },
+    { "path": "package.json", "content": "..." }
+  ]
+}
+
+Rules:
+- Use only these file paths: index.html, src.css, src.js, package.json.
+- index.html must include <html lang="en">, one <h1>, at least one image with alt text, and a visible labeled form field.
+- Link /src.css and optionally /src.js from index.html.
+- Remote image URLs are allowed. Remote scripts, remote fonts, and external build dependencies are not allowed.
+- package.json must contain scripts build="vite build", dev="vite --host 127.0.0.1", no dependencies, and devDependencies with only vite.
+- Make the page visually attractive, responsive, and tailored to the user's idea.`;
+}
+
+function parseLandingPageCodeResponse(body: unknown) {
+  const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const files = Array.isArray(record.files) ? record.files : [];
+
+  return {
+    files: files
+      .map((file): LandingPageFile | undefined => {
+        if (!file || typeof file !== 'object') {
+          return undefined;
+        }
+
+        const recordFile = file as Record<string, unknown>;
+
+        if (typeof recordFile.path !== 'string' || typeof recordFile.content !== 'string') {
+          return undefined;
+        }
+
+        return {
+          path: recordFile.path,
+          content: recordFile.content
+        };
+      })
+      .filter((file): file is LandingPageFile => Boolean(file))
+  };
 }
 
 function contentType(filePath: string) {

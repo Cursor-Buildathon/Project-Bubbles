@@ -175,7 +175,7 @@ describe('createFlowRouter', () => {
       actionType: 'shell_command',
       preview: {
         sandboxed: true,
-        workflow: ['generate files', 'node scripts/accessibility-check.mjs', 'vite build', 'serve locally', 'open browser']
+        workflow: ['generate MiniMax code', 'node scripts/accessibility-check.mjs', 'vite build', 'save to Downloads', 'serve locally', 'open browser']
       }
     });
   });

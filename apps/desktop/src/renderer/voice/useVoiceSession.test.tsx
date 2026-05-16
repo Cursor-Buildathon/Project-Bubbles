@@ -691,6 +691,7 @@ describe('useVoiceSession', () => {
       expect(onApprovalResolved).toHaveBeenCalledWith('Send email was approved.');
       expect(onTranscript).not.toHaveBeenCalled();
       await waitFor(() => expect(result.current.voiceState.captionText).toBe('Send email was approved.'));
+      expect(result.current.voiceState.status).toBe('idle');
     } finally {
       window.bubbles = previousBubbles;
     }
@@ -824,7 +825,7 @@ describe('useVoiceSession', () => {
     }
   });
 
-  it('speaks the approval prompt once when an approval becomes pending', async () => {
+  it('does not speak approval prompts when an approval becomes pending', async () => {
     const previousBubbles = window.bubbles;
     const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
 
@@ -856,16 +857,15 @@ describe('useVoiceSession', () => {
         { initialProps: { pendingApproval: undefined as { id: string; title: string } | undefined } }
       );
 
-      rerender({ pendingApproval: { id: 'approval-1', title: 'Send email' } });
-      rerender({ pendingApproval: { id: 'approval-1', title: 'Send email' } });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        rerender({ pendingApproval: { id: 'approval-1', title: 'Send email' } });
+        rerender({ pendingApproval: { id: 'approval-1', title: 'Send email' } });
+      });
 
-      await waitFor(() =>
-        expect(speak).toHaveBeenCalledWith({
-          text: 'Approval needed: Send email. Say approve, deny, or cancel.',
-          ttsId: 'tts-current'
-        })
-      );
-      expect(speak).toHaveBeenCalledTimes(1);
+      expect(speak).not.toHaveBeenCalled();
     } finally {
       window.bubbles = previousBubbles;
     }

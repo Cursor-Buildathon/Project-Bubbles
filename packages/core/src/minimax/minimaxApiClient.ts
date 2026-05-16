@@ -29,6 +29,7 @@ export class MiniMaxApiError extends Error {
 
 interface MiniMaxApiOptions {
   fetch?: FetchLike;
+  maxCompletionTokens?: number;
 }
 
 export async function verifyMiniMaxApiKey(
@@ -77,46 +78,57 @@ export async function verifyMiniMaxApiKey(
 export async function generateMiniMaxJson<T = unknown>(
   apiKey: string,
   prompt: string,
-  { fetch: fetchImpl = globalThis.fetch as FetchLike }: MiniMaxApiOptions = {}
+  { fetch: fetchImpl = globalThis.fetch as FetchLike, maxCompletionTokens = 1200 }: MiniMaxApiOptions = {}
 ): Promise<T> {
-  const response = await fetchImpl(minimaxChatEndpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: defaultMiniMaxTextModel,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      response_format: { type: 'json_object' },
-      max_completion_tokens: 1200
-    })
-  });
+  let lastError: unknown;
 
-  if (!response.ok) {
-    const body = response.text ? await response.text() : '';
-    throw createMiniMaxApiError(response.status, body, 'MiniMax JSON generation failed');
+  for (const useResponseFormat of [true, false]) {
+    const response = await fetchImpl(minimaxChatEndpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: defaultMiniMaxTextModel,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        ...(useResponseFormat ? { response_format: { type: 'json_object' } } : {}),
+        max_completion_tokens: maxCompletionTokens
+      })
+    });
+
+    if (!response.ok) {
+      const body = response.text ? await response.text() : '';
+      throw createMiniMaxApiError(response.status, body, 'MiniMax JSON generation failed');
+    }
+
+    const body = await response.json();
+    const content = stripThinkingBlocks(extractTextContent(body) ?? '');
+
+    if (!content) {
+      lastError = new Error('MiniMax JSON generation returned no content.');
+      continue;
+    }
+
+    try {
+      return parseJsonContent(content) as T;
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  const body = await response.json();
-  const content = stripThinkingBlocks(extractTextContent(body) ?? '');
-
-  if (!content) {
-    throw new Error('MiniMax JSON generation returned no content.');
-  }
-
-  return parseJsonContent(content) as T;
+  throw lastError instanceof Error ? lastError : new Error('MiniMax JSON generation returned no content.');
 }
 
 export async function generateMiniMaxText(
   apiKey: string,
   prompt: string,
-  { fetch: fetchImpl = globalThis.fetch as FetchLike }: MiniMaxApiOptions = {}
+  { fetch: fetchImpl = globalThis.fetch as FetchLike, maxCompletionTokens = 1200 }: MiniMaxApiOptions = {}
 ): Promise<string> {
   const response = await fetchImpl(minimaxChatEndpoint, {
     method: 'POST',
@@ -132,7 +144,7 @@ export async function generateMiniMaxText(
           content: prompt
         }
       ],
-      max_completion_tokens: 1200
+      max_completion_tokens: maxCompletionTokens
     })
   });
 

@@ -35,7 +35,6 @@ export function useVoiceSession({
   const shouldSpeakNextReplyRef = useRef(false);
   const currentTtsIdRef = useRef<string | undefined>(undefined);
   const lastSpokenTextRef = useRef('');
-  const lastPromptedApprovalIdRef = useRef<string | undefined>(undefined);
   const spokenArrivalMessageIdsRef = useRef(new Set<number>());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -137,34 +136,6 @@ export function useVoiceSession({
     const spoken = prepareSpokenResponse({ chatText: latestBubbleText, summary: latestBubbleText });
     speak(spoken.voiceText, latestBubbleText);
   }, [latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
-
-  useEffect(() => {
-    if (!sideEffectsEnabled) {
-      return;
-    }
-
-    if (!chatEnabled || !pendingApproval || pendingApproval.id === lastPromptedApprovalIdRef.current) {
-      return;
-    }
-
-    lastPromptedApprovalIdRef.current = pendingApproval.id;
-    speak(`Approval needed: ${pendingApproval.title}. Say approve, deny, or cancel.`);
-  }, [chatEnabled, pendingApproval, sideEffectsEnabled]);
-
-  useEffect(() => {
-    if (pendingApproval) {
-      return;
-    }
-
-    lastPromptedApprovalIdRef.current = undefined;
-    setVoiceState((current) => {
-      if (!current.captionText.startsWith('Approval needed:')) {
-        return current;
-      }
-
-      return createRendererVoiceState({ ...current, status: 'idle', captionText: '', partialText: '' });
-    });
-  }, [pendingApproval]);
 
   const startListening = useCallback(async (force = false) => {
     const voiceApi = window.bubbles?.voice;
@@ -428,14 +399,34 @@ export function useVoiceSession({
         })
         .then((result) => {
           onApprovalResolvedRef.current?.(result.message);
+          const shouldSpeakClarification = result.decision.decision === 'unclear' && !result.fallbackRequired;
+
+          if (shouldSpeakClarification && window.bubbles?.voice?.speak) {
+            speak(result.message, `approval:${activePendingApproval.id}:${result.attemptCount}:${result.message}`);
+            return;
+          }
+
           setVoiceState((current) =>
             createRendererVoiceState({
               ...current,
-              status: result.fallbackRequired ? 'idle' : 'speaking',
-              activeTurnId: result.fallbackRequired ? undefined : current.activeTurnId,
+              status: 'idle',
+              activeTurnId: undefined,
               partialText: '',
               captionText: result.message,
               lastError: undefined
+            })
+          );
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Voice approval failed.';
+          setVoiceState((current) =>
+            createRendererVoiceState({
+              ...current,
+              status: 'error',
+              activeTurnId: undefined,
+              partialText: '',
+              captionText: message,
+              lastError: message
             })
           );
         });

@@ -18,12 +18,25 @@ const approvePhrases = [
   /\byup\b/i,
   /\bdo it\b/i,
   /\bgo ahead\b/i,
+  /\bok(?:ay)?\b/i,
   /\ballow\b/i,
-  /\bconfirm\b/i
+  /\bconfirm\b/i,
+  /\bproceed\b/i,
+  /\bsure\b/i
 ];
 
-const denyPhrases = [/\bdeny\b/i, /\bdecline\b/i, /\bno\b/i, /\bdon't\b/i, /\bdo not\b/i, /\breject\b/i, /\bstop\b/i];
-const cancelPhrases = [/\bcancel\b/i, /\bnever mind\b/i, /\bnevermind\b/i, /\bdismiss\b/i];
+const denyPhrases = [
+  /\bdeny\b/i,
+  /\bdecline\b/i,
+  /\bno\b/i,
+  /\bnope\b/i,
+  /\bnah\b/i,
+  /\bdon't\b/i,
+  /\bdo not\b/i,
+  /\breject\b/i,
+  /\bstop\b/i
+];
+const cancelPhrases = [/\bcancel\b/i, /\bnever mind\b/i, /\bnevermind\b/i, /\bdismiss\b/i, /\babort\b/i, /\bforget it\b/i];
 
 export function classifyApprovalVoiceDecision({
   approvalId,
@@ -61,6 +74,10 @@ function classifyTranscript(transcript: string): ApprovalVoiceDecision['decision
 
   if (matchesAny(transcript, denyPhrases)) {
     return 'denied';
+  }
+
+  if (/\bnot\s+sure\b/i.test(transcript)) {
+    return 'unclear';
   }
 
   if (matchesAny(transcript, approvePhrases)) {

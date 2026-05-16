@@ -146,7 +146,7 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
           preview: {
             request: input.userText,
             sandboxed: true,
-            workflow: ['generate files', 'node scripts/accessibility-check.mjs', 'vite build', 'serve locally', 'open browser']
+            workflow: ['generate MiniMax code', 'node scripts/accessibility-check.mjs', 'vite build', 'save to Downloads', 'serve locally', 'open browser']
           }
         });
 

@@ -80,6 +80,60 @@ describe('generateMiniMaxJson', () => {
       profile: { id: 'agent' },
       skillsMarkdown: '# Skills'
     });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      max_completion_tokens: 1200
+    });
+  });
+
+  it('allows larger JSON responses for code-generation workflows', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: '{"files":[]}'
+            }
+          }
+        ]
+      })
+    });
+
+    await expect(generateMiniMaxJson('sk-cp-valid', 'Create code JSON', { fetch: fetchMock, maxCompletionTokens: 8000 })).resolves.toEqual({
+      files: []
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      max_completion_tokens: 8000
+    });
+  });
+
+  it('retries JSON generation without response_format when MiniMax returns empty content', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: '' } }]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: '{"files":[{"path":"index.html","content":"ok"}]}' } }]
+        })
+      });
+
+    await expect(generateMiniMaxJson('sk-cp-valid', 'Create code JSON', { fetch: fetchMock, maxCompletionTokens: 8000 })).resolves.toEqual({
+      files: [{ path: 'index.html', content: 'ok' }]
+    });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      response_format: { type: 'json_object' }
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).not.toHaveProperty('response_format');
   });
 
   it('extracts JSON when MiniMax wraps it with reasoning text', async () => {

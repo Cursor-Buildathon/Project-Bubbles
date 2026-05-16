@@ -19,6 +19,21 @@ describe('classifyApprovalVoiceDecision', () => {
     });
   });
 
+  it('recognizes natural spoken approval variants', () => {
+    expect(classifyApprovalVoiceDecision({ approvalId: 'approval-1', voiceTurnId: 'voice-1', transcript: 'okay proceed' })).toMatchObject({
+      decision: 'approved',
+      confidence: 0.95
+    });
+    expect(classifyApprovalVoiceDecision({ approvalId: 'approval-1', voiceTurnId: 'voice-2', transcript: 'nope do not run it' })).toMatchObject({
+      decision: 'denied',
+      confidence: 0.95
+    });
+    expect(classifyApprovalVoiceDecision({ approvalId: 'approval-1', voiceTurnId: 'voice-3', transcript: 'abort this approval' })).toMatchObject({
+      decision: 'cancelled',
+      confidence: 0.95
+    });
+  });
+
   it('marks ambiguous approval speech as unclear', () => {
     expect(classifyApprovalVoiceDecision({ approvalId: 'approval-1', voiceTurnId: 'voice-1', transcript: 'maybe later' })).toMatchObject({
       decision: 'unclear',

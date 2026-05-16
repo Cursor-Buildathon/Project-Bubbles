@@ -690,10 +690,11 @@ describe('Bubbles floating avatar shell', () => {
     }
   });
 
-  it('clears the approval voice prompt after a typed approval is resolved', async () => {
+  it('does not require a voice prompt for typed approval resolution', async () => {
     const previousBubbles = window.bubbles;
     const approval = createApprovalRequest();
     const approve = vi.fn().mockResolvedValue({ ...approval, status: 'approved' });
+    const speak = vi.fn().mockResolvedValue({ ok: true, text: 'Approval needed: Send external data.', ttsId: 'tts-current' });
     const getState = vi
       .fn()
       .mockResolvedValueOnce({
@@ -729,7 +730,7 @@ describe('Bubbles floating avatar shell', () => {
           bargeIn: vi.fn(),
           getState: vi.fn().mockResolvedValue(createVoiceState()),
           onEvent: vi.fn(() => () => undefined),
-          speak: vi.fn().mockResolvedValue({ ok: true, text: 'Approval needed: Send external data.', ttsId: 'tts-current' }),
+          speak,
           startSession: vi.fn(),
           stopSession: vi.fn(),
           submitPartialTranscript: vi.fn(),
@@ -740,14 +741,12 @@ describe('Bubbles floating avatar shell', () => {
       render(<App />);
 
       expect(await screen.findByText('Send external data')).toBeInTheDocument();
-      expect(await screen.findByRole('status', { name: 'Voice caption' })).toHaveTextContent(
-        'Approval needed: Send external data.'
-      );
+      expect(screen.queryByRole('status', { name: 'Voice caption' })).not.toBeInTheDocument();
+      expect(speak).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole('button', { name: 'Approve Send external data' }));
 
       await waitFor(() => expect(approve).toHaveBeenCalledWith('approval-1'));
-      await waitFor(() => expect(screen.queryByRole('status', { name: 'Voice caption' })).not.toBeInTheDocument());
       expect(screen.getByText('Approved. I sent the email draft.')).toBeInTheDocument();
     } finally {
       window.history.pushState({}, '', '/');

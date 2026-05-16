@@ -15,6 +15,7 @@ import {
   createLandingPageRunner,
   createMemoryExtractor,
   createMiniMaxCreativeService,
+  createMiniMaxLandingPageCodeGenerator,
   createMiniMaxTtsService,
   classifyIntent,
   createResearchService,
@@ -41,6 +42,7 @@ import {
   type ArtifactMetadata,
   type ConnectorConfig,
   type ConnectorHealth,
+  type LandingPageFile,
   type MemoryItem,
   type MemoryStore,
   type MiniMaxSetupService,
@@ -68,6 +70,11 @@ import { createVoiceIpcController, registerVoiceIpc } from './ipc/voiceIpc.js';
 import { registerVoiceSetupIpc } from './ipc/voiceSetupIpc.js';
 import { shouldUseMiniMaxMediaFixture } from './mediaFixtureMode.js';
 import { sendToWindow } from './ipc/windowMessaging.js';
+import {
+  copyManagedLandingPageProject,
+  isLandingPageRevisionPrompt,
+  readLandingPageProjectFiles
+} from './landingPageWorkflow.js';
 import { registerVoiceShortcut, unregisterVoiceShortcut, VOICE_SHORTCUT_CHANNEL } from './voiceShortcut.js';
 
 protocol.registerSchemesAsPrivileged([
@@ -99,8 +106,17 @@ let latestResearchReport: ResearchReport | undefined;
 let taskLogDir = '';
 let artifactRoot = '';
 const pendingAgentDrafts = new Map<string, AgentBirthDraft>();
-const pendingLandingPageActions = new Map<string, { request: string }>();
+const pendingLandingPageActions = new Map<string, { changeRequest?: string; request: string }>();
 const staticSiteServers: Array<{ stop: () => void }> = [];
+let activeLandingPageSession:
+  | {
+      files: LandingPageFile[];
+      outputDir: string;
+      request: string;
+      stopPreview: () => void;
+      url: string;
+    }
+  | undefined;
 const voiceTraceIds = new Map<string, string>();
 const voiceEnabled = process.env.BUBBLES_VOICE_ENABLED !== 'false';
 const voiceApprovalsEnabled = voiceEnabled && process.env.BUBBLES_VOICE_APPROVALS_ENABLED !== 'false';
@@ -284,6 +300,17 @@ function createPanelWindow() {
 
   loadRenderer(panelWindow, 'panel');
   return panelWindow;
+}
+
+function presentApprovalPopupWindow() {
+  if (!appState.approvals.some((approval) => approval.status === 'pending')) {
+    return;
+  }
+
+  const window = createPanelWindow();
+  sendToWindow(avatarWindow, 'panel:state', true);
+  window?.focus();
+  keepAvatarAbovePanel();
 }
 
 function loadRenderer(window: BrowserWindow, windowRole: 'avatar' | 'panel') {
@@ -485,6 +512,7 @@ function registerWindowIpc() {
         text: `I drafted ${draft.profile.name}. Please approve the agent file creation before I write it.`
       }
     ];
+    presentApprovalPopupWindow();
     broadcastAppState();
     return draft.profile;
   });
@@ -978,6 +1006,53 @@ async function routeCapabilityFlow(userText: string) {
     }
   }
 
+  if (isLandingPageRevisionPrompt(userText, Boolean(activeLandingPageSession))) {
+    if (!approvalService || !activeLandingPageSession) {
+      appState.messages = [
+        ...appState.messages,
+        { id: Date.now(), author: 'user', text: userText },
+        {
+          id: Date.now() + 1,
+          author: 'bubbles',
+          text: 'Landing-page revision approvals are not ready yet.'
+        }
+      ];
+      appState.avatarState = 'concerned';
+      broadcastAppState();
+      return true;
+    }
+
+    const approval = await approvalService.create({
+      taskId: `task-landing-${Date.now()}`,
+      agentId: 'coding-agent',
+      actionType: 'shell_command',
+      title: 'Generate landing page',
+      explanation: 'Bubbles needs approval before updating the downloaded page, running checks, and reopening the local preview.',
+      preview: {
+        request: activeLandingPageSession.request,
+        changeRequest: userText,
+        revision: true,
+        sandboxed: true,
+        workflow: ['generate MiniMax code', 'node scripts/accessibility-check.mjs', 'vite build', 'save to Downloads', 'serve locally', 'open browser']
+      }
+    });
+    pendingLandingPageActions.set(approval.id, { request: activeLandingPageSession.request, changeRequest: userText });
+    appState.messages = [
+      ...appState.messages,
+      { id: Date.now(), author: 'user', text: userText },
+      {
+        id: Date.now() + 1,
+        author: 'bubbles',
+        text: 'I drafted a landing-page revision workflow. Please approve it before I update the downloaded project and reopen the local preview.'
+      }
+    ];
+    appState.avatarState = 'waiting_approval';
+    appState.approvals = await approvalService.list();
+    presentApprovalPopupWindow();
+    broadcastAppState();
+    return true;
+  }
+
   const router = createFlowRouter({
     creative: {
       run: (request) => runCreativeCapability(request)
@@ -1040,6 +1115,9 @@ async function routeCapabilityFlow(userText: string) {
     : [...appState.messages, { id: Date.now(), author: 'user', text: userText }, bubbleMessage];
   appState.avatarState = result.avatarState;
   appState.approvals = (await approvalService?.list()) ?? appState.approvals;
+  if (result.avatarState === 'waiting_approval') {
+    presentApprovalPopupWindow();
+  }
   await hydrateMemoryState();
   broadcastAppState();
   return true;
@@ -1144,27 +1222,40 @@ function rememberLandingPageAction(approval: ApprovalRequest) {
   }
 
   const request = stringPreviewValue(approval.preview.request);
+  const changeRequest = stringPreviewValue(approval.preview.changeRequest);
 
   if (request) {
-    pendingLandingPageActions.set(approval.id, { request });
+    pendingLandingPageActions.set(approval.id, { request, changeRequest });
   }
 }
 
-async function runApprovedLandingPageAction(approval: ApprovalRequest) {
+type LandingPageRunResult = 'not_applicable' | 'success' | 'failed';
+
+async function runApprovedLandingPageAction(approval: ApprovalRequest): Promise<LandingPageRunResult> {
   const traceId = `trace-c7-${approval.id}`;
   const pendingAction = pendingLandingPageActions.get(approval.id) ?? {
     request: stringPreviewValue(approval.preview.request) ?? ''
   };
 
   if (!pendingAction.request) {
-    return false;
+    return 'not_applicable';
   }
 
   pendingLandingPageActions.delete(approval.id);
 
   if (!landingPageEnabled) {
     appState.messages = [...appState.messages, { id: Date.now() + 1, author: 'bubbles', text: 'Landing-page generation is disabled.' }];
-    return true;
+    return 'failed';
+  }
+
+  const apiKey = await miniMaxKeyStore?.getTokenPlanKey();
+
+  if (!apiKey) {
+    appState.messages = [
+      ...appState.messages,
+      { id: Date.now() + 1, author: 'bubbles', text: 'MiniMax Token Plan key is required for landing-page generation.' }
+    ];
+    return 'failed';
   }
 
   try {
@@ -1173,8 +1264,21 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
       { command: 'vite', args: ['build'] }
     ]);
     const sandboxRoot = join(resolveArtifactRoot(), 'landing-pages');
-    const runner = createLandingPageRunner({ sandboxRoot });
-    const generated = await runner.generate({ request: pendingAction.request });
+    const runner = createLandingPageRunner({
+      sandboxRoot,
+      generateCode: createMiniMaxLandingPageCodeGenerator({
+        generateJson: (prompt) => generateMiniMaxJson(apiKey, prompt, { maxCompletionTokens: 8000 })
+      })
+    });
+    const previousFiles =
+      pendingAction.changeRequest && activeLandingPageSession?.request === pendingAction.request
+        ? activeLandingPageSession.files
+        : undefined;
+    const generated = await runner.generate({
+      request: pendingAction.request,
+      changeRequest: pendingAction.changeRequest,
+      previousFiles
+    });
     appendTraceEvent('c7.sandbox_generated', {
       approvalId: approval.id,
       taskId: approval.taskId,
@@ -1191,8 +1295,10 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
         ...appState.messages,
         { id: Date.now() + 1, author: 'bubbles', text: `The landing-page sandbox failed checks: ${generated.error}` }
       ];
-      return true;
+      return 'failed';
     }
+
+    const generatedFiles = await readLandingPageProjectFiles(generated.siteDir);
 
     appendTraceEvent('c7.command_started', {
       approvalId: approval.id,
@@ -1213,7 +1319,7 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
         ...appState.messages,
         { id: Date.now() + 1, author: 'bubbles', text: `The landing-page accessibility check failed: ${redactSecrets(accessibility.stderr || accessibility.stdout)}` }
       ];
-      return true;
+      return 'failed';
     }
 
     const viteBin = resolveViteBin();
@@ -1236,21 +1342,41 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
         ...appState.messages,
         { id: Date.now() + 1, author: 'bubbles', text: `The landing-page build failed: ${redactSecrets(build.stderr || build.stdout)}` }
       ];
-      return true;
+      return 'failed';
     }
 
+    const saved = await copyManagedLandingPageProject({
+      downloadsRoot: join(app.getPath('downloads'), 'Bubbles Landing Pages'),
+      request: pendingAction.request,
+      sourceDir: generated.siteDir
+    });
     const port = await findAvailablePort(4173, { host: '127.0.0.1' });
-    const server = createStaticSiteServer(generated.siteDir);
+    const server = createStaticSiteServer(join(saved.outputDir, 'dist'));
     const served = await server.start(port);
+    activeLandingPageSession?.stopPreview();
     staticSiteServers.push(server);
     await shell.openExternal(served.url);
+    const artifact = {
+      ...generated.artifact,
+      path: saved.outputDir,
+      title: saved.projectName,
+      url: served.url
+    };
+    activeLandingPageSession = {
+      files: generatedFiles,
+      outputDir: saved.outputDir,
+      request: pendingAction.request,
+      stopPreview: () => server.stop(),
+      url: served.url
+    };
     appendTraceEvent('c7.site_served', {
       approvalId: approval.id,
       taskId: approval.taskId,
       traceId,
       fields: {
-        artifactId: generated.artifact.id,
+        artifactId: artifact.id,
         port,
+        projectName: saved.projectName,
         url: served.url
       }
     });
@@ -1259,11 +1385,13 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
       {
         id: Date.now() + 1,
         author: 'bubbles',
-        artifacts: [{ ...generated.artifact, url: served.url }],
-        text: 'I opened the landing page locally. Take a look, and tell me what to change.'
+        artifacts: [artifact],
+        speakOnArrival: true,
+        text: 'I opened the landing page locally. Take a look, and tell me what to change.',
+        voiceText: 'The webpage is ready. Please look at it in your browser.'
       }
     ];
-    return true;
+    return 'success';
   } catch (error) {
     appState.messages = [
       ...appState.messages,
@@ -1273,7 +1401,7 @@ async function runApprovedLandingPageAction(approval: ApprovalRequest) {
         text: `The landing-page sandbox failed: ${redactSecrets(error)}`
       }
     ];
-    return true;
+    return 'failed';
   }
 }
 
@@ -1358,6 +1486,20 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
     return;
   }
 
+  if (isLandingPageApproval(approval)) {
+    await hydrateApprovalState();
+    appState.avatarState = 'working';
+    appState.messages = [
+      ...appState.messages,
+      {
+        id: Date.now() + 1,
+        author: 'bubbles',
+        text: "Approved. I'm generating the landing page now."
+      }
+    ];
+    broadcastAppState();
+  }
+
   const agentDraft = pendingAgentDrafts.get(approval.id);
 
   if (agentDraft && agentRegistry) {
@@ -1381,13 +1523,17 @@ async function handleApprovalResolved(approval: ApprovalRequest) {
     ];
   }
 
-  await runApprovedLandingPageAction(approval);
+  const landingPageResult = await runApprovedLandingPageAction(approval);
 
   await hydrateAgentState();
   await hydrateApprovalState();
   await hydrateMemoryState();
-  appState.avatarState = 'celebrating';
+  appState.avatarState = landingPageResult === 'failed' ? 'concerned' : 'celebrating';
   broadcastAppState();
+}
+
+function isLandingPageApproval(approval: ApprovalRequest) {
+  return approval.actionType === 'shell_command' && approval.title === 'Generate landing page';
 }
 
 async function handleRememberCommand(userText: string) {
