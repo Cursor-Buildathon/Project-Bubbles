@@ -17,8 +17,23 @@ describe('prepareSpokenResponse', () => {
     });
   });
 
-  it('asks the user to look in chat for replies with exactly 200 characters', () => {
-    const exactLimitSummary = '1234567890'.repeat(20);
+  it('speaks replies under the 500 character limit in full', () => {
+    const underLimitSummary = '1234567890'.repeat(40);
+
+    expect(
+      prepareSpokenResponse({
+        chatText: underLimitSummary,
+        summary: underLimitSummary
+      })
+    ).toEqual({
+      voiceText: underLimitSummary,
+      captionText: underLimitSummary,
+      summarized: false
+    });
+  });
+
+  it('asks the user to look in chat for replies with exactly 500 characters', () => {
+    const exactLimitSummary = '1234567890'.repeat(50);
 
     expect(
       prepareSpokenResponse({
@@ -32,11 +47,14 @@ describe('prepareSpokenResponse', () => {
     });
   });
 
-  it('asks the user to look in chat for replies over 200 characters', () => {
+  it('asks the user to look in chat for replies over 500 characters', () => {
     const longSummary = [
       'I finished that task and added the full details in the chat panel.',
       'The important part is complete, and I included the verification notes so you can see what changed.',
-      'I also kept the implementation small so the existing voice playback path still receives the same kind of prepared response.'
+      'I also kept the implementation small so the existing voice playback path still receives the same kind of prepared response.',
+      'This final sentence keeps the fixture comfortably above the new spoken response character limit.',
+      'One more sentence makes the intended boundary obvious without changing the behavior being tested.',
+      'This closing line keeps the sample above five hundred characters.'
     ].join(' ');
 
     expect(

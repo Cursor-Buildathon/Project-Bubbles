@@ -283,7 +283,9 @@ describe('useVoiceSession', () => {
     const longReply = [
       'I finished the task and put a complete explanation with next steps in the chat panel.',
       'The full write-up includes what changed, what I checked, and the remaining caveats so the spoken response can stay compact.',
-      'Please use the chat panel for the details because this response is intentionally over the TTS character limit.'
+      'Please use the chat panel for the details because this response is intentionally over the TTS character limit.',
+      'This extra sentence keeps the fixture above the current spoken response threshold without changing the behavior under test.',
+      'The fixture also remains long enough when the threshold increases, so the hook continues proving it speaks the chat-panel prompt.'
     ].join(' ');
 
     try {

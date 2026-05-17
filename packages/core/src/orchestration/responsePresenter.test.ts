@@ -46,7 +46,9 @@ describe('presentResponse', () => {
       'After that, batch messages into two windows so they do not fracture the day.',
       'Finally, keep a small buffer for anything that arrives late.',
       'If another request interrupts the plan, move it into the buffer instead of rebuilding the schedule.',
-      'This keeps the day flexible without losing the most important work.'
+      'This keeps the day flexible without losing the most important work.',
+      'When the plan gets detailed, the voice response should stay concise and point the user to chat.',
+      'That preserves the full written answer while avoiding a long spoken monologue.'
     ].join(' ');
 
     expect(
