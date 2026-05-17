@@ -176,7 +176,7 @@ async function transcribeWithOpenAi({
 }) {
   const { buffer, mimeType } = decodeDataUrl(input.audioDataUrl, input.mimeType);
   const form = new FormData();
-  form.append('file', new Blob([buffer], { type: mimeType }), 'bubbles-voice.wav');
+  form.append('file', new Blob([buffer], { type: mimeType }), `bubbles-voice.${extensionForMimeType(mimeType)}`);
   form.append('model', 'whisper-1');
   form.append('prompt', 'Return English text only.');
 
@@ -238,6 +238,28 @@ function decodeDataUrl(dataUrl: string, fallbackMimeType: string) {
     buffer: Buffer.from(base64, 'base64'),
     mimeType
   };
+}
+
+function extensionForMimeType(mimeType: string) {
+  const normalized = mimeType.split(';', 1)[0]?.trim().toLowerCase();
+
+  if (normalized === 'audio/webm') {
+    return 'webm';
+  }
+
+  if (normalized === 'audio/mp4' || normalized === 'audio/m4a' || normalized === 'audio/x-m4a') {
+    return 'm4a';
+  }
+
+  if (normalized === 'audio/mpeg' || normalized === 'audio/mp3') {
+    return 'mp3';
+  }
+
+  if (normalized === 'audio/ogg' || normalized === 'audio/opus') {
+    return 'ogg';
+  }
+
+  return 'wav';
 }
 
 function providerLabel(provider: Extract<VoiceProvider, 'gemini' | 'openai'>) {

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type AgentProfile,
   type ApprovalRequest,
@@ -12,7 +12,7 @@ import {
 import { AssistantPanel } from './components/AssistantPanel';
 import { FloatingAvatarWindow } from './components/FloatingAvatarWindow';
 import { type AvatarState } from '../avatar/animationCatalog';
-import { useVoiceSession } from './voice/useVoiceSession';
+import { useVoiceSession, type VoiceReplyCandidate } from './voice/useVoiceSession';
 import './styles.css';
 
 export interface ChatMessage {
@@ -67,6 +67,7 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const messageRequestSequenceRef = useRef(0);
   const {
     activeAgent,
     activeTaskId,
@@ -86,25 +87,40 @@ export function App() {
   }, [messages]);
   const latestBubbleText = latestBubbleMessage?.text ?? 'Ready when you are.';
   const latestBubbleVoiceText = latestBubbleMessage?.voiceText ?? latestBubbleText;
+  const latestBubbleArtifactIds = useMemo(() => latestBubbleMessage?.artifacts?.map((artifact) => artifact.id) ?? [], [latestBubbleMessage]);
   const pendingApproval = useMemo(() => {
     const approval = approvals.find((candidate) => candidate.status === 'pending');
     return approval ? { id: approval.id, title: approval.title } : undefined;
   }, [approvals]);
 
   const submitUserText = useCallback(
-    async (userText: string) => {
+    async (userText: string): Promise<VoiceReplyCandidate | undefined> => {
       const trimmedText = userText.trim();
 
       if (!trimmedText || !chatEnabled) {
-        return;
+        return undefined;
       }
+
+      const requestSequence = messageRequestSequenceRef.current + 1;
+      messageRequestSequenceRef.current = requestSequence;
 
       if (window.bubbles?.sendMessage) {
         try {
           const state = await window.bubbles.sendMessage(trimmedText);
-          setAppState(normalizeAppState(state));
+          if (messageRequestSequenceRef.current !== requestSequence) {
+            return undefined;
+          }
+
+          const nextState = normalizeAppState(state);
+          setAppState(nextState);
+          return latestBubbleReplyCandidate(nextState);
         } catch (error) {
+          if (messageRequestSequenceRef.current !== requestSequence) {
+            return undefined;
+          }
+
           const nextId = Date.now();
+          const message = `I could not start that request: ${error instanceof Error ? error.message : String(error)}`;
           setAppState((currentState) => ({
             ...currentState,
             avatarState: 'concerned',
@@ -114,28 +130,35 @@ export function App() {
               {
                 id: nextId + 1,
                 author: 'bubbles',
-                text: `I could not start that request: ${error instanceof Error ? error.message : String(error)}`
+                text: message
               }
             ]
           }));
+          return {
+            id: nextId + 1,
+            text: message
+          };
         }
       } else if (window.bubbles?.tasks?.start) {
         await window.bubbles.tasks.start(trimmedText);
+        return undefined;
       } else {
         const nextId = Date.now();
+        const bubbleMessage: ChatMessage = {
+          id: nextId + 1,
+          author: 'bubbles',
+          text: `I heard: ${trimmedText}`
+        };
         setAppState((currentState) => ({
           ...currentState,
           avatarState: 'listening',
           messages: [
             ...currentState.messages,
             { id: nextId, author: 'user', text: trimmedText },
-            {
-              id: nextId + 1,
-              author: 'bubbles',
-              text: `I heard: ${trimmedText}`
-            }
+            bubbleMessage
           ]
         }));
+        return replyCandidateFromMessage(bubbleMessage);
       }
     },
     [chatEnabled]
@@ -143,6 +166,7 @@ export function App() {
 
   const voiceSession = useVoiceSession({
     chatEnabled,
+    latestBubbleArtifactIds,
     latestBubbleMessageId: latestBubbleMessage?.id,
     latestBubbleSpeakOnArrival: latestBubbleMessage?.speakOnArrival,
     latestBubbleText: latestBubbleVoiceText,
@@ -379,6 +403,24 @@ function normalizeAppState(state: Partial<BubblesAppState> | undefined): Bubbles
     taskEvents: state?.taskEvents ?? [],
     timelineEvents: state?.timelineEvents ?? [],
     voiceState: state?.voiceState ?? initialAppState.voiceState
+  };
+}
+
+function latestBubbleReplyCandidate(state: BubblesAppState): VoiceReplyCandidate | undefined {
+  return replyCandidateFromMessage([...state.messages].reverse().find((message) => message.author === 'bubbles'));
+}
+
+function replyCandidateFromMessage(message: ChatMessage | undefined): VoiceReplyCandidate | undefined {
+  if (!message) {
+    return undefined;
+  }
+
+  return {
+    artifactIds: message.artifacts?.map((artifact) => artifact.id),
+    id: message.id,
+    speakOnArrival: message.speakOnArrival,
+    text: message.text,
+    voiceText: message.voiceText
   };
 }
 

@@ -646,6 +646,96 @@ describe('Bubbles floating avatar shell', () => {
     }
   });
 
+  it('ignores an older voice sendMessage result when a newer request has already resolved', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    type SendMessageResult = Awaited<ReturnType<NonNullable<typeof window.bubbles>['sendMessage']>>;
+    const olderResponse = createDeferred<SendMessageResult>();
+    const newerResponse = createDeferred<SendMessageResult>();
+    const sendMessage = vi.fn((text: string) => (text === 'older request' ? olderResponse.promise : newerResponse.promise));
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [],
+          taskEvents: [],
+          voiceState: createVoiceState()
+        }),
+        sendMessage,
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' })),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      });
+
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: /Start voice input/ })).toBeInTheDocument();
+      await waitFor(() => expect(voiceCallback).toBeDefined());
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-old', text: 'older request', confidence: 0.9 },
+          createVoiceState({ status: 'processing', captionText: 'older request' })
+        );
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-new', text: 'newer request', confidence: 0.9 },
+          createVoiceState({ status: 'processing', captionText: 'newer request' })
+        );
+      });
+
+      newerResponse.resolve({
+        activeTaskId: null,
+        avatarState: 'celebrating',
+        messages: [
+          { id: 3, author: 'user', text: 'newer request' },
+          { id: 4, author: 'bubbles', text: 'Newer answer.' }
+        ],
+        taskEvents: [],
+        voiceState: createVoiceState({ status: 'speaking', captionText: 'Newer answer.' })
+      });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'Newer answer.', ttsId: 'tts-current' }));
+      expect(await screen.findAllByText('Newer answer.')).toHaveLength(2);
+
+      olderResponse.resolve({
+        activeTaskId: null,
+        avatarState: 'celebrating',
+        messages: [
+          { id: 1, author: 'user', text: 'older request' },
+          { id: 2, author: 'bubbles', text: 'Older answer.' }
+        ],
+        taskEvents: [],
+        voiceState: createVoiceState({ status: 'speaking', captionText: 'Older answer.' })
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText('Older answer.')).not.toBeInTheDocument();
+      expect(speak).not.toHaveBeenCalledWith({ text: 'Older answer.', ttsId: 'tts-current' });
+      expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+    }
+  });
+
   it('speaks the fixed Bubbles introduction when requested by voice', async () => {
     const previousBubbles = window.bubbles;
     const restoreAudio = mockAudioPlayback();
@@ -1018,6 +1108,17 @@ function mockAudioPlayback() {
       value: previousAudio
     });
   };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
 }
 
 function createApprovalRequest(overrides: Partial<ApprovalRequest> = {}): ApprovalRequest {

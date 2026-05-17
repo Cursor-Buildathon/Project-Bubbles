@@ -2,7 +2,16 @@ import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 
 import { type VoiceEvent, type VoiceSessionState } from '@bubbles/core';
 import { prepareSpokenResponse } from '@bubbles/core/src/voice/spokenResponsePolicy.js';
 
+export interface VoiceReplyCandidate {
+  artifactIds?: string[];
+  id?: number;
+  speakOnArrival?: boolean;
+  text: string;
+  voiceText?: string;
+}
+
 interface UseVoiceSessionOptions {
+  latestBubbleArtifactIds?: string[];
   chatEnabled: boolean;
   latestBubbleMessageId?: number;
   latestBubbleSpeakOnArrival?: boolean;
@@ -13,13 +22,17 @@ interface UseVoiceSessionOptions {
   };
   sideEffectsEnabled?: boolean;
   onApprovalResolved?: (message: string) => void;
-  onTranscript: (text: string) => Promise<void> | void;
+  onTranscript: (text: string) => Promise<VoiceReplyCandidate | void> | VoiceReplyCandidate | void;
 }
 
 const COMMAND_PREFIX_LABEL = 'Hey Bubbles';
+const SPOKEN_ARRIVAL_STORAGE_KEY = 'bubbles:voice:spoken-arrivals';
+const MAX_STORED_SPOKEN_ARRIVALS = 80;
+const MIN_FALLBACK_AUDIO_BYTES = 512;
 
 export function useVoiceSession({
   chatEnabled,
+  latestBubbleArtifactIds = [],
   latestBubbleMessageId,
   latestBubbleSpeakOnArrival = false,
   latestBubbleText,
@@ -32,11 +45,13 @@ export function useVoiceSession({
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const captureStartInFlightRef = useRef(false);
-  const shouldSpeakNextReplyRef = useRef(false);
   const currentTtsIdRef = useRef<string | undefined>(undefined);
   const handledFinalTranscriptKeysRef = useRef(new Set<string>());
   const lastSpokenTextRef = useRef('');
-  const spokenArrivalMessageIdsRef = useRef(new Set<number>());
+  const pendingVoiceReplyTokenRef = useRef<string | undefined>(undefined);
+  const voiceReplySequenceRef = useRef(0);
+  const speechRequestTokenRef = useRef(0);
+  const spokenArrivalKeysRef = useRef<Set<string>>(loadSpokenArrivalKeys());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadCleanupRef = useRef<() => void>();
@@ -106,38 +121,24 @@ export function useVoiceSession({
       return;
     }
 
-    if (!latestBubbleSpeakOnArrival || latestBubbleMessageId === undefined || spokenArrivalMessageIdsRef.current.has(latestBubbleMessageId)) {
+    if (!latestBubbleSpeakOnArrival || latestBubbleMessageId === undefined) {
       return;
     }
 
     const text = latestBubbleText.trim();
+    const speechKey = createSpokenArrivalKey({
+      artifactIds: latestBubbleArtifactIds,
+      messageId: latestBubbleMessageId,
+      text
+    });
 
-    if (!text) {
+    if (!text || spokenArrivalKeysRef.current.has(speechKey)) {
       return;
     }
 
-    spokenArrivalMessageIdsRef.current.add(latestBubbleMessageId);
-    shouldSpeakNextReplyRef.current = false;
-    speak(text, `${latestBubbleMessageId}:${text}`);
-  }, [latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
-
-  useEffect(() => {
-    if (!sideEffectsEnabled) {
-      return;
-    }
-
-    if (latestBubbleSpeakOnArrival) {
-      return;
-    }
-
-    if (!shouldSpeakNextReplyRef.current || !latestBubbleText.trim() || latestBubbleText === lastSpokenTextRef.current) {
-      return;
-    }
-
-    shouldSpeakNextReplyRef.current = false;
-    const spoken = prepareSpokenResponse({ chatText: latestBubbleText, summary: latestBubbleText });
-    speak(spoken.voiceText, latestBubbleText);
-  }, [latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
+    rememberSpokenArrivalKey(spokenArrivalKeysRef.current, speechKey);
+    speak(text, speechKey);
+  }, [latestBubbleArtifactIds, latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText, sideEffectsEnabled]);
 
   const startListening = useCallback(async (force = false) => {
     const voiceApi = window.bubbles?.voice;
@@ -162,9 +163,11 @@ export function useVoiceSession({
       let result;
 
       if (currentStatus === 'speaking') {
+        const stoppedTtsId = currentTtsIdRef.current ?? 'tts-current';
+        cancelPendingSpeech();
         stopActiveAudio(activeAudioRef);
-        await voiceApi.stopSpeaking?.({ ttsId: currentTtsIdRef.current ?? 'tts-current' });
-        result = await voiceApi.bargeIn?.({ stoppedTtsId: currentTtsIdRef.current ?? 'tts-current' });
+        await voiceApi.stopSpeaking?.({ ttsId: stoppedTtsId });
+        result = await voiceApi.bargeIn?.({ stoppedTtsId });
       } else {
         result = await voiceApi.startSession();
       }
@@ -229,12 +232,14 @@ export function useVoiceSession({
       return;
     }
 
+    const stoppedTtsId = currentTtsIdRef.current ?? 'tts-current';
+    cancelPendingSpeech();
     stopActiveAudio(activeAudioRef);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    await window.bubbles?.voice?.stopSpeaking?.({ ttsId: currentTtsIdRef.current ?? 'tts-current' });
-    const result = await window.bubbles?.voice?.bargeIn({ stoppedTtsId: currentTtsIdRef.current ?? 'tts-current' });
+    await window.bubbles?.voice?.stopSpeaking?.({ ttsId: stoppedTtsId });
+    const result = await window.bubbles?.voice?.bargeIn({ stoppedTtsId });
 
     if (result) {
       setVoiceState(result.state);
@@ -330,10 +335,10 @@ export function useVoiceSession({
 
     try {
       const recordedBlob = new Blob(chunks, { type: recordedMimeType });
-      const audioDataUrl = await audioBlobToWavDataUrl(recordedBlob);
+      const audioPayload = await audioBlobToTranscriptionPayload(recordedBlob);
       const result = await window.bubbles?.voice?.transcribeAudio?.({
-        audioDataUrl,
-        mimeType: 'audio/wav',
+        audioDataUrl: audioPayload.audioDataUrl,
+        mimeType: audioPayload.mimeType,
         voiceTurnId
       });
 
@@ -451,35 +456,98 @@ export function useVoiceSession({
       return;
     }
 
-    shouldSpeakNextReplyRef.current = true;
-    await onTranscriptRef.current(transcript);
+    const replyToken = createVoiceReplyToken(event.voiceTurnId, voiceReplySequenceRef);
+    pendingVoiceReplyTokenRef.current = replyToken;
+
+    try {
+      const reply = await onTranscriptRef.current(transcript);
+
+      if (pendingVoiceReplyTokenRef.current !== replyToken) {
+        return;
+      }
+
+      pendingVoiceReplyTokenRef.current = undefined;
+      speakVoiceReply(reply);
+    } catch (error) {
+      if (pendingVoiceReplyTokenRef.current !== replyToken) {
+        return;
+      }
+
+      pendingVoiceReplyTokenRef.current = undefined;
+      const message = error instanceof Error ? error.message : 'Voice request failed.';
+      setVoiceState((current) =>
+        createRendererVoiceState({
+          ...current,
+          status: 'error',
+          activeTurnId: undefined,
+          partialText: '',
+          captionText: message,
+          lastError: message
+        })
+      );
+    }
+  }
+
+  function speakVoiceReply(reply: VoiceReplyCandidate | void) {
+    if (!reply) {
+      return;
+    }
+
+    const text = (reply.voiceText ?? reply.text).trim();
+
+    if (!text) {
+      return;
+    }
+
+    const speechKey =
+      reply.speakOnArrival && reply.id !== undefined
+        ? createSpokenArrivalKey({
+            artifactIds: reply.artifactIds ?? [],
+            messageId: reply.id,
+            text
+          })
+        : undefined;
+
+    if (speechKey) {
+      rememberSpokenArrivalKey(spokenArrivalKeysRef.current, speechKey);
+      speak(text, speechKey);
+      return;
+    }
+
+    const spoken = prepareSpokenResponse({ chatText: reply.text, summary: text });
+    speak(spoken.voiceText, reply.text);
   }
 
   function speak(text: string, dedupeText = text) {
     const ttsId = 'tts-current';
+    const requestToken = speechRequestTokenRef.current + 1;
+    speechRequestTokenRef.current = requestToken;
     currentTtsIdRef.current = ttsId;
     lastSpokenTextRef.current = dedupeText;
+    stopActiveAudio(activeAudioRef);
     setVoiceState((current) => createRendererVoiceState({ ...current, status: 'speaking', captionText: text }));
 
     if (window.bubbles?.voice?.speak) {
       void window.bubbles.voice.speak({ text, ttsId }).then((result) => {
-        if (!result?.ok || !result.audioUrl) {
-          if (currentTtsIdRef.current === ttsId) {
-            const errorMessage = result?.error ?? 'Voice playback failed.';
-            currentTtsIdRef.current = undefined;
-            setVoiceState((current) =>
-              createRendererVoiceState({
-                ...current,
-                status: result?.ok ? 'idle' : 'error',
-                lastError: result?.ok ? undefined : errorMessage,
-                captionText: result?.ok ? current.captionText : errorMessage
-              })
-            );
-          }
+        if (speechRequestTokenRef.current !== requestToken || currentTtsIdRef.current !== ttsId) {
           return;
         }
 
-        playAudioUrl(result.audioUrl, ttsId);
+        if (!result?.ok || !result.audioUrl) {
+          const errorMessage = result?.error ?? 'Voice playback failed.';
+          currentTtsIdRef.current = undefined;
+          setVoiceState((current) =>
+            createRendererVoiceState({
+              ...current,
+              status: result?.ok ? 'idle' : 'error',
+              lastError: result?.ok ? undefined : errorMessage,
+              captionText: result?.ok ? current.captionText : errorMessage
+            })
+          );
+          return;
+        }
+
+        playAudioUrl(result.audioUrl, ttsId, requestToken);
       });
       return;
     }
@@ -488,7 +556,17 @@ export function useVoiceSession({
     setVoiceState((current) => createRendererVoiceState({ ...current, status: 'idle', lastError: undefined }));
   }
 
-  function playAudioUrl(audioUrl: string, ttsId: string) {
+  function cancelPendingSpeech() {
+    speechRequestTokenRef.current += 1;
+    currentTtsIdRef.current = undefined;
+    pendingVoiceReplyTokenRef.current = undefined;
+  }
+
+  function playAudioUrl(audioUrl: string, ttsId: string, requestToken: number) {
+    if (speechRequestTokenRef.current !== requestToken || currentTtsIdRef.current !== ttsId) {
+      return;
+    }
+
     stopActiveAudio(activeAudioRef);
 
     if (typeof Audio !== 'function') {
@@ -500,14 +578,14 @@ export function useVoiceSession({
     const audio = new Audio(audioUrl);
     activeAudioRef.current = audio;
     audio.onended = () => {
-      if (currentTtsIdRef.current === ttsId) {
+      if (speechRequestTokenRef.current === requestToken && currentTtsIdRef.current === ttsId) {
         currentTtsIdRef.current = undefined;
         activeAudioRef.current = null;
         setVoiceState((current) => createRendererVoiceState({ ...current, status: 'idle', lastError: undefined }));
       }
     };
     audio.onerror = () => {
-      if (currentTtsIdRef.current === ttsId) {
+      if (speechRequestTokenRef.current === requestToken && currentTtsIdRef.current === ttsId) {
         currentTtsIdRef.current = undefined;
         activeAudioRef.current = null;
         setVoiceState((current) =>
@@ -521,7 +599,7 @@ export function useVoiceSession({
       }
     };
     void audio.play().catch(() => {
-      if (currentTtsIdRef.current === ttsId) {
+      if (speechRequestTokenRef.current === requestToken && currentTtsIdRef.current === ttsId) {
         currentTtsIdRef.current = undefined;
         activeAudioRef.current = null;
         setVoiceState((current) =>
@@ -576,7 +654,8 @@ function canUseMicrophoneCapture() {
 }
 
 function shouldTranscribeCapture(chunks: Blob[], heardSpeech: boolean) {
-  return chunks.some((chunk) => chunk.size > 0) && heardSpeech;
+  const capturedBytes = chunks.reduce((total, chunk) => total + chunk.size, 0);
+  return chunks.some((chunk) => chunk.size > 0) && (heardSpeech || capturedBytes >= MIN_FALLBACK_AUDIO_BYTES);
 }
 
 function normalizeCommandTranscript(transcript: string): { commandText: string; hadWakePhrase: boolean } {
@@ -587,6 +666,25 @@ function normalizeCommandTranscript(transcript: string): { commandText: string; 
   }
 
   return { commandText: (match[1] ?? '').trim(), hadWakePhrase: true };
+}
+
+function createVoiceReplyToken(voiceTurnId: string, sequenceRef: MutableRefObject<number>) {
+  sequenceRef.current += 1;
+  return `${voiceTurnId}:${sequenceRef.current}`;
+}
+
+async function audioBlobToTranscriptionPayload(blob: Blob) {
+  try {
+    return {
+      audioDataUrl: await audioBlobToWavDataUrl(blob),
+      mimeType: 'audio/wav'
+    };
+  } catch {
+    return {
+      audioDataUrl: await blobToDataUrl(blob),
+      mimeType: blob.type || 'audio/webm'
+    };
+  }
 }
 
 async function audioBlobToWavDataUrl(blob: Blob) {
@@ -734,4 +832,48 @@ function stopActiveAudio(activeAudioRef: MutableRefObject<HTMLAudioElement | nul
   activeAudioRef.current.pause();
   activeAudioRef.current.src = '';
   activeAudioRef.current = null;
+}
+
+function createSpokenArrivalKey({
+  artifactIds,
+  messageId,
+  text
+}: {
+  artifactIds: string[];
+  messageId: number;
+  text: string;
+}) {
+  const normalizedText = text.trim().replace(/\s+/g, ' ');
+  const normalizedArtifacts = artifactIds.map((id) => id.trim()).filter(Boolean).sort().join(',');
+  return `${messageId}:${normalizedText}:${normalizedArtifacts}`;
+}
+
+function loadSpokenArrivalKeys() {
+  try {
+    const raw = window.sessionStorage?.getItem(SPOKEN_ARRIVAL_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function rememberSpokenArrivalKey(keys: Set<string>, key: string) {
+  keys.add(key);
+
+  while (keys.size > MAX_STORED_SPOKEN_ARRIVALS) {
+    const oldest = keys.values().next().value;
+
+    if (!oldest) {
+      break;
+    }
+
+    keys.delete(oldest);
+  }
+
+  try {
+    window.sessionStorage?.setItem(SPOKEN_ARRIVAL_STORAGE_KEY, JSON.stringify([...keys]));
+  } catch {
+    // Session storage is only a remount guard; in-memory dedupe still covers the active hook.
+  }
 }

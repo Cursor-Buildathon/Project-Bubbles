@@ -71,6 +71,29 @@ describe('createVoiceTranscriptionService', () => {
     expect(form.get('prompt')).toBe('Return English text only.');
   });
 
+  it('uses an upload filename extension that matches the recorded MIME type for OpenAI', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ text: 'WebM transcript.' })
+    });
+    const service = createVoiceTranscriptionService({
+      fetch: fetchMock,
+      openAiApiKey: 'openai-secret'
+    });
+    const webmDataUrl = `data:audio/webm;base64,${Buffer.from('webm-bytes').toString('base64')}`;
+
+    await expect(service.transcribe({ audioDataUrl: webmDataUrl, mimeType: 'audio/webm' })).resolves.toEqual({
+      ok: true,
+      provider: 'openai',
+      transcript: 'WebM transcript.'
+    });
+    const form = fetchMock.mock.calls[0][1].body as FormData;
+    const file = form.get('file') as File;
+    expect(file.name).toBe('bubbles-voice.webm');
+    expect(file.type).toBe('audio/webm');
+  });
+
   it('returns an actionable terminal error when no STT key is configured', async () => {
     const service = createVoiceTranscriptionService({ fetch: vi.fn() });
 
