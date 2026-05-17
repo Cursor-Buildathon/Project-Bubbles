@@ -1,0 +1,19 @@
+{
+  "name": "bubbles-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "corepack pnpm --filter @bubbles/desktop dev",
+    "build": "corepack pnpm --filter @bubbles/desktop build",
+    "doctor": "node tools/dev/capability-map.mjs && node tools/dev/fixture-audit.mjs",
+    "audit:capabilities": "node tools/dev/capability-map.mjs",
+    "audit:fixtures": "node tools/dev/fixture-audit.mjs",
+    "test": "corepack pnpm -r test",
+    "test:core": "corepack pnpm --filter @bubbles/core test",
+    "test:desktop": "corepack pnpm --filter @bubbles/desktop test",
+    "typecheck": "corepack pnpm -r typecheck",
+    "typecheck:core": "corepack pnpm --filter @bubbles/core typecheck",
+    "typecheck:desktop": "corepack pnpm --filter @bubbles/desktop typecheck"
+  }
+}

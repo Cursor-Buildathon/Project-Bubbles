@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bubbles Fixture Audit"
+  short_description: "Find fixture-only or static Bubbles workflows"
+  default_prompt: "Use $bubbles-fixture-audit to audit this Bubbles workflow for fixture-only behavior."
+policy:
+  allow_implicit_invocation: true

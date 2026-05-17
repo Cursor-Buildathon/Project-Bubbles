@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bubbles Debugging"
+  short_description: "Debug Bubbles MVP failures by boundary"
+  default_prompt: "Use $bubbles-debugging to investigate this Bubbles MVP failure."
+policy:
+  allow_implicit_invocation: true

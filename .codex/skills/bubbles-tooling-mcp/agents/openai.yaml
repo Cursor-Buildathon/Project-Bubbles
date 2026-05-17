@@ -1,0 +1,14 @@
+interface:
+  display_name: "Bubbles Tooling And MCP"
+  short_description: "Debug Tavily, connectors, and diagnostics"
+  default_prompt: "Use $bubbles-tooling-mcp to configure or debug Bubbles MVP Tavily tooling or local diagnostics."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "computer-use"
+      description: "Inspect and operate the Electron app window when runtime behavior matters."
+    - type: "mcp"
+      value: "lazyweb"
+      description: "Find UI references for renderer and workspace design improvements."
+policy:
+  allow_implicit_invocation: true

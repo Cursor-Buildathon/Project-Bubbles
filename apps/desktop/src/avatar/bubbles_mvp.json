@@ -1,0 +1,77 @@
+{
+  "image": "bubbles_mvp.png",
+  "frameSize": {
+    "width": 128,
+    "height": 128
+  },
+  "sheetSize": {
+    "columns": 8,
+    "rows": 9
+  },
+  "animations": {
+    "idle": {
+      "row": 0,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 6,
+      "loop": true
+    },
+    "listening": {
+      "row": 1,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 8,
+      "loop": true
+    },
+    "thinking": {
+      "row": 2,
+      "startColumn": 0,
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "working": {
+      "row": 3,
+      "startColumn": 0,
+      "frames": 8,
+      "fps": 10,
+      "loop": true
+    },
+    "waiting_approval": {
+      "row": 4,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 5,
+      "loop": true
+    },
+    "confused": {
+      "row": 5,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 6,
+      "loop": true
+    },
+    "concerned": {
+      "row": 6,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 6,
+      "loop": true
+    },
+    "celebrating": {
+      "row": 7,
+      "startColumn": 0,
+      "frames": 8,
+      "fps": 10,
+      "loop": false
+    },
+    "sleeping": {
+      "row": 8,
+      "startColumn": 0,
+      "frames": 6,
+      "fps": 4,
+      "loop": true
+    }
+  },
+  "notes": "Imagegen-generated Bubbles MVP sprite sheet. One universal Bubbles body; agents do not alter sprite art."
+}
