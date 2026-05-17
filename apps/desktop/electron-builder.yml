@@ -11,6 +11,7 @@ mac:
   target:
     - dmg
     - zip
+  # Local/internal package only. Developer ID signing, hardened runtime, and notarization are intentionally out of scope for this pass.
   hardenedRuntime: false
   gatekeeperAssess: false
 asar: true

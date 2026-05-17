@@ -1173,8 +1173,22 @@ button {
 }
 
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: #ffffff;
   color: #344247;
+}
+
+.secondary-button--danger {
+  border-color: rgba(157, 55, 46, 0.28);
+  color: #7b2c28;
+  background: #fff6f4;
+}
+
+.settings-status-message {
+  width: 100%;
 }
 
 .icon-text-button {

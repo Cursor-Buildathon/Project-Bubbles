@@ -83,7 +83,41 @@ describe('Bubbles floating avatar shell', () => {
         expect(screen.queryByText('Reset Token Plan key')).not.toBeNull();
         expect(screen.queryByText('Reset all')).not.toBeNull();
         expect(screen.queryByText('Export redacted logs')).not.toBeNull();
+        expect(screen.queryByText('Quit Bubbles MVP')).not.toBeNull();
+        expect(screen.queryByText('Move app to Trash')).not.toBeNull();
       });
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it('calls lifecycle actions and surfaces unavailable uninstall results', async () => {
+    const previousBubbles = window.bubbles;
+    const quit = vi.fn().mockResolvedValue({ ok: true });
+    const moveToTrash = vi.fn().mockResolvedValue({
+      ok: false,
+      error: 'Move to Trash is available only from the packaged macOS app.'
+    });
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = createPanelBubbles({
+        lifecycle: {
+          moveToTrash,
+          quit
+        },
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' }))
+      });
+
+      render(<App />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Quit Bubbles MVP' }));
+      await waitFor(() => expect(quit).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Move app to Trash' }));
+      await waitFor(() => expect(moveToTrash).toHaveBeenCalled());
+      expect(await screen.findByRole('status')).toHaveTextContent('Move to Trash is available only from the packaged macOS app.');
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "package:mac": "electron-vite build && ELECTRON_BUILDER_CACHE=dist/.electron-builder-cache PATH=../../tools/dev/pnpm-shim:$PATH electron-builder --mac dmg zip",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json"
   },
@@ -26,6 +27,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.2.1",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.2",

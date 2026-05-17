@@ -1,4 +1,17 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, net, protocol, screen, session, shell, systemPreferences } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  net,
+  protocol,
+  screen,
+  session,
+  shell,
+  systemPreferences,
+  type MenuItemConstructorOptions
+} from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
@@ -81,6 +94,7 @@ import {
   readLandingPageProjectFiles
 } from './landingPageWorkflow.js';
 import { registerVoiceShortcut, unregisterVoiceShortcut, VOICE_SHORTCUT_CHANNEL } from './voiceShortcut.js';
+import { movePackagedMacAppToTrash } from './appLifecycle.js';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -334,6 +348,7 @@ function loadRenderer(window: BrowserWindow, windowRole: 'avatar' | 'panel') {
 
 void app.whenReady().then(() => {
   app.setAppUserModelId('com.bubbles.mvp');
+  installApplicationMenu();
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media');
   });
@@ -427,6 +442,13 @@ app.on('will-quit', () => {
 });
 
 function registerWindowIpc() {
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+    return { ok: true };
+  });
+
+  ipcMain.handle('app:move-to-trash', () => handleMoveAppToTrash());
+
   ipcMain.handle('app:get-state', () => appState);
 
   ipcMain.handle('app:set-avatar-state', (_event, avatarState: AvatarState) => {
@@ -614,6 +636,87 @@ function registerWindowIpc() {
     if (window === panelWindow) {
       keepAvatarAbovePanel();
     }
+  });
+}
+
+function installApplicationMenu() {
+  const template: MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: 'Bubbles MVP',
+            submenu: [
+              {
+                label: 'Move Bubbles MVP to Trash',
+                enabled: app.isPackaged,
+                click: () => {
+                  void handleMoveAppToTrash();
+                }
+              },
+              { type: 'separator' },
+              {
+                label: 'Quit Bubbles MVP',
+                accelerator: 'Command+Q',
+                click: () => app.quit()
+              }
+            ]
+          } satisfies MenuItemConstructorOptions
+        ]
+      : []),
+    {
+      label: 'File',
+      submenu:
+        process.platform === 'darwin'
+          ? [{ role: 'close' }]
+          : [
+              {
+                label: 'Quit Bubbles MVP',
+                accelerator: 'Ctrl+Q',
+                click: () => app.quit()
+              }
+            ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'close' }]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+async function handleMoveAppToTrash() {
+  return movePackagedMacAppToTrash({
+    execPath: process.execPath,
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    quit: () => {
+      setTimeout(() => app.quit(), 100);
+    },
+    trashItem: (path) => shell.trashItem(path)
   });
 }
 

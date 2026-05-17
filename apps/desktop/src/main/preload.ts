@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('bubbles', {
   getState: () => ipcRenderer.invoke('app:get-state'),
+  lifecycle: {
+    moveToTrash: () => ipcRenderer.invoke('app:move-to-trash'),
+    quit: () => ipcRenderer.invoke('app:quit')
+  },
   closePanel: () => ipcRenderer.invoke('panel:close'),
   moveWindowBy: (delta: { x: number; y: number }) => ipcRenderer.invoke('window:move-by', delta),
   onStateChange: (callback: (state: unknown) => void) => {
