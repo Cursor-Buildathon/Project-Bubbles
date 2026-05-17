@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createFlowRouter } from './flowRouter.js';
+
+const bubblesIntroductionResponse =
+  "I'm Bubbles. I can plan, remember context, research with Tavily, create images, music, and video, build approved landing pages, create agents, manage approvals, and speak with voice.";
 
 describe('createFlowRouter', () => {
   it('leaves general MiniMax-backed tasks for the existing task runner', async () => {
@@ -11,6 +14,34 @@ describe('createFlowRouter', () => {
       suggestedAgentId: 'general-assistant'
     });
   });
+
+  it.each(['Bubbles Introduce Yourself', 'Bubbles, introduce yourself.', 'introduce yourself'])(
+    'returns the fixed Bubbles introduction for %s without provider callbacks',
+    async (userText) => {
+      const createApproval = vi.fn();
+      const creativeRun = vi.fn();
+      const researchRun = vi.fn();
+      const router = createFlowRouter({
+        createApproval,
+        creative: { run: creativeRun },
+        research: { run: researchRun }
+      });
+
+      await expect(router.route({ userText, activeAgentId: 'general-assistant' })).resolves.toEqual({
+        avatarState: 'celebrating',
+        handled: true,
+        message: bubblesIntroductionResponse,
+        speakOnArrival: true,
+        suggestedAgentId: 'general-assistant',
+        taskType: 'general.plan',
+        voiceText: bubblesIntroductionResponse
+      });
+      expect(bubblesIntroductionResponse.length).toBeLessThanOrEqual(300);
+      expect(createApproval).not.toHaveBeenCalled();
+      expect(creativeRun).not.toHaveBeenCalled();
+      expect(researchRun).not.toHaveBeenCalled();
+    }
+  );
 
   it('routes research prompts through Tavily and returns the report without forcing TTS narration', async () => {
     const router = createFlowRouter({

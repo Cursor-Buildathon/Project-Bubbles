@@ -3,6 +3,9 @@ import { vi } from 'vitest';
 import { App } from './App';
 import { type ApprovalRequest, type SetupStatus, type VoiceEvent, type VoiceSessionState } from '@bubbles/core';
 
+const bubblesIntroductionResponse =
+  "I'm Bubbles. I can plan, remember context, research with Tavily, create images, music, and video, build approved landing pages, create agents, manage approvals, and speak with voice.";
+
 describe('Bubbles floating avatar shell', () => {
   it('renders the assistant workspace without the buildathon demo strip', async () => {
     const previousBubbles = window.bubbles;
@@ -643,6 +646,82 @@ describe('Bubbles floating avatar shell', () => {
     }
   });
 
+  it('speaks the fixed Bubbles introduction when requested by voice', async () => {
+    const previousBubbles = window.bubbles;
+    const restoreAudio = mockAudioPlayback();
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current', audioUrl: 'bubbles-artifact://local/intro.mp3' });
+    const sendMessage = vi.fn().mockResolvedValue({
+      activeTaskId: null,
+      avatarState: 'celebrating',
+      messages: [
+        { id: 1, author: 'user', text: 'Bubbles Introduce Yourself' },
+        {
+          id: 2,
+          author: 'bubbles',
+          speakOnArrival: true,
+          text: bubblesIntroductionResponse,
+          voiceText: bubblesIntroductionResponse
+        }
+      ],
+      taskEvents: [],
+      voiceState: createVoiceState({ status: 'speaking', captionText: bubblesIntroductionResponse })
+    });
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [],
+          taskEvents: [],
+          voiceState: createVoiceState()
+        }),
+        sendMessage,
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' })),
+        voice: {
+          bargeIn: vi.fn().mockResolvedValue({
+            event: { type: 'voice.barge_in', voiceTurnId: 'voice-1' },
+            state: createVoiceState({ status: 'listening' })
+          }),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      });
+
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: /Start voice input/ })).toBeInTheDocument();
+      await waitFor(() => expect(voiceCallback).toBeDefined());
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-intro', text: 'Bubbles Introduce Yourself', confidence: 0.94 },
+          createVoiceState({ status: 'processing', captionText: 'Bubbles Introduce Yourself' })
+        );
+      });
+
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('Bubbles Introduce Yourself'));
+      expect(await screen.findAllByText(bubblesIntroductionResponse)).toHaveLength(2);
+      expect(screen.getByRole('status', { name: 'Voice caption' })).toHaveTextContent(bubblesIntroductionResponse);
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: bubblesIntroductionResponse, ttsId: 'tts-current' }));
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+      restoreAudio();
+    }
+  });
+
   it('resolves pending approvals from voice final transcripts instead of sending chat', async () => {
     const previousBubbles = window.bubbles;
     let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
@@ -906,6 +985,38 @@ function createPanelBubbles(
     setup: createSetupApi(createSetupStatus()),
     togglePanel: vi.fn().mockResolvedValue({ isOpen: true }),
     ...overrides
+  };
+}
+
+function mockAudioPlayback() {
+  const previousAudio = window.Audio;
+
+  class FakeAudio {
+    onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    src = '';
+
+    constructor(src: string) {
+      this.src = src;
+    }
+
+    pause() {}
+
+    play() {
+      return Promise.resolve();
+    }
+  }
+
+  Object.defineProperty(window, 'Audio', {
+    configurable: true,
+    value: FakeAudio
+  });
+
+  return () => {
+    Object.defineProperty(window, 'Audio', {
+      configurable: true,
+      value: previousAudio
+    });
   };
 }
 

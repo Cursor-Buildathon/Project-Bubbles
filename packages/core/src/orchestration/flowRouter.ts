@@ -3,6 +3,9 @@ import { type TavilySearchResult } from '../connectors/tavilyResearchConnector.j
 import { type ResearchReport } from '../research/researchService.js';
 import { classifyIntent, type IntentClassification } from './intentClassifier.js';
 
+const bubblesIntroductionResponse =
+  "I'm Bubbles. I can plan, remember context, research with Tavily, create images, music, and video, build approved landing pages, create agents, manage approvals, and speak with voice.";
+
 export type CreateApproval = (
   approval: Omit<ApprovalRequest, 'id' | 'risk' | 'status' | 'createdAt' | 'resolvedAt'>
 ) => Promise<ApprovalRequest>;
@@ -49,6 +52,18 @@ interface FlowRouterOptions {
 export function createFlowRouter({ createApproval, creative, research }: FlowRouterOptions = {}) {
   return {
     async route(input: FlowRouterInput): Promise<FlowRouterResult> {
+      if (isBubblesIntroductionPrompt(input.userText)) {
+        return {
+          handled: true,
+          taskType: 'general.plan',
+          suggestedAgentId: input.activeAgentId,
+          avatarState: 'celebrating',
+          message: bubblesIntroductionResponse,
+          speakOnArrival: true,
+          voiceText: bubblesIntroductionResponse
+        };
+      }
+
       const intent = classifyIntent(input.userText);
 
       if (intent.taskType === 'research.web') {
@@ -187,6 +202,17 @@ export function createFlowRouter({ createApproval, creative, research }: FlowRou
       };
     }
   };
+}
+
+function isBubblesIntroductionPrompt(userText: string) {
+  const normalized = userText
+    .trim()
+    .toLowerCase()
+    .replace(/[.,:;!?-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized === 'bubbles introduce yourself' || normalized === 'introduce yourself';
 }
 
 function creativeKindForTask(taskType: 'creative.image' | 'creative.music' | 'creative.video') {
