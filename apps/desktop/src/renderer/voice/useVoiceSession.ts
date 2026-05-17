@@ -10,6 +10,10 @@ export interface VoiceReplyCandidate {
   voiceText?: string;
 }
 
+export interface VoiceTranscriptContext {
+  baselineMessageId?: number;
+}
+
 interface UseVoiceSessionOptions {
   latestBubbleArtifactIds?: string[];
   chatEnabled: boolean;
@@ -22,7 +26,12 @@ interface UseVoiceSessionOptions {
   };
   sideEffectsEnabled?: boolean;
   onApprovalResolved?: (message: string) => void;
-  onTranscript: (text: string) => Promise<VoiceReplyCandidate | void> | VoiceReplyCandidate | void;
+  onTranscript: (text: string, context?: VoiceTranscriptContext) => Promise<VoiceReplyCandidate | void> | VoiceReplyCandidate | void;
+}
+
+interface PendingVoiceOutput {
+  baselineMessageId?: number;
+  token: string;
 }
 
 const COMMAND_PREFIX_LABEL = 'Hey Bubbles';
@@ -48,6 +57,8 @@ export function useVoiceSession({
   const currentTtsIdRef = useRef<string | undefined>(undefined);
   const handledFinalTranscriptKeysRef = useRef(new Set<string>());
   const lastSpokenTextRef = useRef('');
+  const latestBubbleMessageIdRef = useRef(latestBubbleMessageId);
+  const pendingVoiceOutputRef = useRef<PendingVoiceOutput | undefined>();
   const pendingVoiceReplyTokenRef = useRef<string | undefined>(undefined);
   const voiceReplySequenceRef = useRef(0);
   const speechRequestTokenRef = useRef(0);
@@ -73,6 +84,10 @@ export function useVoiceSession({
   useEffect(() => {
     voiceStateRef.current = voiceState;
   }, [voiceState]);
+
+  useEffect(() => {
+    latestBubbleMessageIdRef.current = latestBubbleMessageId;
+  }, [latestBubbleMessageId]);
 
   useEffect(() => {
     let ignore = false;
@@ -121,7 +136,29 @@ export function useVoiceSession({
       return;
     }
 
-    if (!latestBubbleSpeakOnArrival || latestBubbleMessageId === undefined) {
+    if (latestBubbleMessageId === undefined) {
+      return;
+    }
+
+    const reply = {
+      artifactIds: latestBubbleArtifactIds,
+      id: latestBubbleMessageId,
+      speakOnArrival: latestBubbleSpeakOnArrival,
+      text: latestBubbleText
+    };
+    const pendingOutput = pendingVoiceOutputRef.current;
+
+    if (
+      pendingOutput &&
+      isNewerThanBaseline(latestBubbleMessageId, pendingOutput.baselineMessageId) &&
+      speakVoiceReply(reply, { baselineMessageId: pendingOutput.baselineMessageId })
+    ) {
+      pendingVoiceOutputRef.current = undefined;
+      pendingVoiceReplyTokenRef.current = undefined;
+      return;
+    }
+
+    if (!latestBubbleSpeakOnArrival) {
       return;
     }
 
@@ -132,7 +169,7 @@ export function useVoiceSession({
       text
     });
 
-    if (!text || spokenArrivalKeysRef.current.has(speechKey)) {
+    if (!text || isProgressVoiceReply(text) || spokenArrivalKeysRef.current.has(speechKey)) {
       return;
     }
 
@@ -456,23 +493,33 @@ export function useVoiceSession({
       return;
     }
 
+    const baselineMessageId = latestBubbleMessageIdRef.current;
     const replyToken = createVoiceReplyToken(event.voiceTurnId, voiceReplySequenceRef);
+    pendingVoiceOutputRef.current = { baselineMessageId, token: replyToken };
     pendingVoiceReplyTokenRef.current = replyToken;
 
     try {
-      const reply = await onTranscriptRef.current(transcript);
+      const reply =
+        baselineMessageId === undefined
+          ? await onTranscriptRef.current(transcript)
+          : await onTranscriptRef.current(transcript, { baselineMessageId });
 
       if (pendingVoiceReplyTokenRef.current !== replyToken) {
         return;
       }
 
-      pendingVoiceReplyTokenRef.current = undefined;
-      speakVoiceReply(reply);
+      if (speakVoiceReply(reply, { baselineMessageId })) {
+        pendingVoiceOutputRef.current = undefined;
+        pendingVoiceReplyTokenRef.current = undefined;
+      } else {
+        pendingVoiceReplyTokenRef.current = undefined;
+      }
     } catch (error) {
       if (pendingVoiceReplyTokenRef.current !== replyToken) {
         return;
       }
 
+      pendingVoiceOutputRef.current = undefined;
       pendingVoiceReplyTokenRef.current = undefined;
       const message = error instanceof Error ? error.message : 'Voice request failed.';
       setVoiceState((current) =>
@@ -488,15 +535,23 @@ export function useVoiceSession({
     }
   }
 
-  function speakVoiceReply(reply: VoiceReplyCandidate | void) {
+  function speakVoiceReply(reply: VoiceReplyCandidate | void, options: { baselineMessageId?: number } = {}) {
     if (!reply) {
-      return;
+      return false;
+    }
+
+    if (reply.id !== undefined && !isNewerThanBaseline(reply.id, options.baselineMessageId)) {
+      return false;
+    }
+
+    if (isProgressVoiceReply(reply.text)) {
+      return false;
     }
 
     const text = (reply.voiceText ?? reply.text).trim();
 
     if (!text) {
-      return;
+      return false;
     }
 
     const speechKey =
@@ -509,13 +564,22 @@ export function useVoiceSession({
         : undefined;
 
     if (speechKey) {
+      if (spokenArrivalKeysRef.current.has(speechKey)) {
+        return false;
+      }
+
       rememberSpokenArrivalKey(spokenArrivalKeysRef.current, speechKey);
       speak(text, speechKey);
-      return;
+      return true;
+    }
+
+    if (reply.text.trim() === lastSpokenTextRef.current) {
+      return false;
     }
 
     const spoken = prepareSpokenResponse({ chatText: reply.text, summary: text });
     speak(spoken.voiceText, reply.text);
+    return true;
   }
 
   function speak(text: string, dedupeText = text) {
@@ -559,6 +623,7 @@ export function useVoiceSession({
   function cancelPendingSpeech() {
     speechRequestTokenRef.current += 1;
     currentTtsIdRef.current = undefined;
+    pendingVoiceOutputRef.current = undefined;
     pendingVoiceReplyTokenRef.current = undefined;
   }
 
@@ -671,6 +736,19 @@ function normalizeCommandTranscript(transcript: string): { commandText: string; 
 function createVoiceReplyToken(voiceTurnId: string, sequenceRef: MutableRefObject<number>) {
   sequenceRef.current += 1;
   return `${voiceTurnId}:${sequenceRef.current}`;
+}
+
+function isNewerThanBaseline(messageId: number, baselineMessageId: number | undefined) {
+  return baselineMessageId === undefined || messageId > baselineMessageId;
+}
+
+function isProgressVoiceReply(text: string) {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  return (
+    /^i['’]m generating your (image|music|video)\b/.test(normalized) ||
+    /^approved\. i['’]m generating the landing page now\.?$/.test(normalized)
+  );
 }
 
 async function audioBlobToTranscriptionPayload(blob: Blob) {

@@ -172,6 +172,81 @@ describe('Bubbles floating avatar shell', () => {
     expect(screen.queryByTestId('assistant-panel')).not.toBeInTheDocument();
   });
 
+  it('keeps long floating speech bubble text in a scrollable focusable region', async () => {
+    const previousBubbles = window.bubbles;
+    const longBubbleText = [
+      'Here is the longer update you asked for:',
+      'I found the relevant files, checked the current state, and I can keep the compact bubble readable even when the answer is much longer than the usual greeting.',
+      'https://example.com/a/very/long/path/that/should/not-break-the-floating-avatar-bubble-layout'
+    ].join('\n');
+
+    try {
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [{ id: 1, author: 'bubbles', text: longBubbleText }],
+          taskEvents: []
+        })
+      });
+
+      render(<App />);
+
+      const speechBubble = await screen.findByRole('region', { name: 'Latest Bubbles message' });
+
+      await waitFor(() => expect(speechBubble.textContent).toBe(longBubbleText));
+      expect(speechBubble).toHaveAttribute('tabindex', '0');
+      expect(speechBubble).toHaveClass('speech-bubble');
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it('shows the latest full ready text in the compact speech bubble instead of a stale voice caption', async () => {
+    const previousBubbles = window.bubbles;
+    const readyText = 'The webpage is ready. I opened the local preview and added the link in chat.';
+
+    try {
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'celebrating',
+          messages: [
+            { id: 1, author: 'bubbles', text: 'Previous response.' },
+            {
+              id: 2,
+              author: 'bubbles',
+              artifacts: [{ id: 'site-ready-1', kind: 'site' as const, url: 'http://localhost:4173', title: 'Landing page' }],
+              speakOnArrival: true,
+              text: readyText,
+              voiceText: 'The webpage is ready.'
+            }
+          ],
+          taskEvents: [],
+          voiceState: createVoiceState({ status: 'idle', captionText: 'Previous response.' })
+        }),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState({ status: 'idle', captionText: 'Previous response.' })),
+          onEvent: vi.fn(() => () => undefined),
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      });
+
+      render(<App />);
+
+      const speechBubble = await screen.findByRole('region', { name: 'Latest Bubbles message' });
+
+      await waitFor(() => expect(speechBubble.textContent).toBe(readyText));
+      expect(speechBubble).not.toHaveTextContent('Previous response.');
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
   it('opens the assistant panel with chat, history, task, approvals, memory, connector, and settings sections', () => {
     render(<App />);
 
@@ -193,10 +268,40 @@ describe('Bubbles floating avatar shell', () => {
   it('opens the assistant panel when the speech bubble surface is clicked', () => {
     render(<App />);
 
-    fireEvent.pointerDown(screen.getByTestId('floating-avatar-window'), { screenX: 100, screenY: 100 });
-    fireEvent.pointerUp(screen.getByTestId('floating-avatar-window'), { screenX: 100, screenY: 100 });
+    fireEvent.pointerDown(screen.getByTestId('speech-bubble'), { screenX: 100, screenY: 100 });
+    fireEvent.pointerUp(screen.getByTestId('speech-bubble'), { screenX: 100, screenY: 100 });
 
     expect(screen.getByTestId('assistant-panel')).toBeInTheDocument();
+  });
+
+  it('does not drag or toggle the avatar window when pointer moves inside the speech bubble', async () => {
+    const previousBubbles = window.bubbles;
+    const moveWindowBy = vi.fn().mockResolvedValue(undefined);
+    const togglePanel = vi.fn().mockResolvedValue({ isOpen: true });
+
+    try {
+      window.bubbles = createPanelBubbles({
+        moveWindowBy,
+        togglePanel
+      });
+
+      render(<App />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const speechBubble = screen.getByTestId('speech-bubble');
+
+      fireEvent(speechBubble, createPointerTestEvent('pointerdown', 100, 100));
+      fireEvent(speechBubble, createPointerTestEvent('pointermove', 100, 130));
+      fireEvent(speechBubble, createPointerTestEvent('pointerup', 100, 130));
+
+      expect(moveWindowBy).not.toHaveBeenCalled();
+      expect(togglePanel).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('assistant-panel')).not.toBeInTheDocument();
+    } finally {
+      window.bubbles = previousBubbles;
+    }
   });
 
   it('closes the assistant panel and returns to compact mode', () => {
@@ -711,7 +816,7 @@ describe('Bubbles floating avatar shell', () => {
       });
 
       await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'Newer answer.', ttsId: 'tts-current' }));
-      expect(await screen.findAllByText('Newer answer.')).toHaveLength(2);
+      expect(await screen.findByText('Newer answer.')).toBeInTheDocument();
 
       olderResponse.resolve({
         activeTaskId: null,
@@ -730,6 +835,200 @@ describe('Bubbles floating avatar shell', () => {
       expect(screen.queryByText('Older answer.')).not.toBeInTheDocument();
       expect(speak).not.toHaveBeenCalledWith({ text: 'Older answer.', ttsId: 'tts-current' });
       expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it.each([
+    {
+      artifact: { id: 'voice-image-ready', kind: 'image' as const, path: '/tmp/bubbles-image.png', title: 'Generated image' },
+      command: 'create an image',
+      label: 'image',
+      progressText: "I'm generating your image. This can take a minute.",
+      readyText: 'The image is ready.',
+      visibleText: 'The image is ready. I added it to the chat.'
+    },
+    {
+      artifact: { id: 'voice-music-ready', kind: 'audio' as const, path: '/tmp/bubbles-song.mp3', title: 'Generated music' },
+      command: 'create music',
+      label: 'music',
+      progressText: "I'm generating your music. This can take a minute or two.",
+      readyText: 'The music is ready.',
+      visibleText: 'The music is ready. I added it to the chat.'
+    },
+    {
+      artifact: { id: 'voice-site-ready', kind: 'site' as const, url: 'http://localhost:4173', title: 'Landing page' },
+      command: 'create a web landing page',
+      label: 'web landing page',
+      progressText: "Approved. I'm generating the landing page now.",
+      readyText: 'The webpage is ready.',
+      visibleText: 'The webpage is ready. I opened the local preview and added the link in chat.'
+    }
+  ])('speaks the ready $label output from a voice request without replaying old or progress text', async ({ artifact, command, progressText, readyText, visibleText }) => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    let stateCallback: Parameters<NonNullable<typeof window.bubbles>['onStateChange']>[0] | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const sendMessage = vi.fn().mockResolvedValue({
+      activeTaskId: 'task-voice-output',
+      avatarState: 'thinking',
+      messages: [
+        { id: 1, author: 'bubbles', text: 'Previous response.' },
+        { id: 2, author: 'user', text: command },
+        { id: 3, author: 'bubbles', text: progressText }
+      ],
+      taskEvents: [],
+      voiceState: createVoiceState({ status: 'processing', captionText: progressText })
+    });
+    window.sessionStorage.clear();
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [{ id: 1, author: 'bubbles', text: 'Previous response.' }],
+          taskEvents: [],
+          voiceState: createVoiceState()
+        }),
+        onStateChange: vi.fn((callback) => {
+          stateCallback = callback;
+          return () => undefined;
+        }),
+        sendMessage,
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' })),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      });
+
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: /Start voice input/ })).toBeInTheDocument();
+      await waitFor(() => expect(voiceCallback).toBeDefined());
+      await waitFor(() => expect(stateCallback).toBeDefined());
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: `voice-${artifact.id}`, text: command, confidence: 0.92 },
+          createVoiceState({ status: 'processing', captionText: command })
+        );
+      });
+
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(command));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(speak).not.toHaveBeenCalledWith({ text: 'Previous response.', ttsId: 'tts-current' });
+      expect(speak).not.toHaveBeenCalledWith({ text: progressText, ttsId: 'tts-current' });
+
+      act(() => {
+        stateCallback?.({
+          activeTaskId: null,
+          avatarState: 'celebrating',
+          messages: [
+            { id: 1, author: 'bubbles', text: 'Previous response.' },
+            { id: 2, author: 'user', text: command },
+            {
+              id: 3,
+              author: 'bubbles',
+              artifacts: [artifact],
+              speakOnArrival: true,
+              text: visibleText,
+              voiceText: readyText
+            }
+          ],
+          taskEvents: [],
+          voiceState: createVoiceState({ status: 'speaking', captionText: readyText })
+        });
+      });
+
+      expect(await screen.findByText(visibleText)).toBeInTheDocument();
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: readyText, ttsId: 'tts-current' }));
+      expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.pushState({}, '', '/');
+      window.bubbles = previousBubbles;
+      window.sessionStorage.clear();
+    }
+  });
+
+  it('speaks a new web-search voice summary while keeping the full report in chat', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const reportText = '## Web research report\nI found three relevant sources and added citations in the chat.';
+    const voiceText = 'Your web search is ready. I put the full report in chat.';
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const sendMessage = vi.fn().mockResolvedValue({
+      activeTaskId: null,
+      avatarState: 'celebrating',
+      messages: [
+        { id: 1, author: 'bubbles', text: 'Previous response.' },
+        { id: 2, author: 'user', text: 'do a web search' },
+        { id: 3, author: 'bubbles', text: reportText, voiceText }
+      ],
+      taskEvents: [],
+      voiceState: createVoiceState({ status: 'speaking', captionText: voiceText })
+    });
+
+    try {
+      window.history.pushState({}, '', '/?window=panel');
+      window.bubbles = createPanelBubbles({
+        getState: vi.fn().mockResolvedValue({
+          activeTaskId: null,
+          avatarState: 'idle',
+          messages: [{ id: 1, author: 'bubbles', text: 'Previous response.' }],
+          taskEvents: [],
+          voiceState: createVoiceState()
+        }),
+        sendMessage,
+        setup: createSetupApi(createSetupStatus({ state: 'ready', mode: 'full' })),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn().mockResolvedValue(createVoiceState()),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      });
+
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: /Start voice input/ })).toBeInTheDocument();
+      await waitFor(() => expect(voiceCallback).toBeDefined());
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-web-search', text: 'do a web search', confidence: 0.92 },
+          createVoiceState({ status: 'processing', captionText: 'do a web search' })
+        );
+      });
+
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledWith('do a web search'));
+      await waitFor(() => expect(screen.getByTestId('chat-surface')).toHaveTextContent('I found three relevant sources'));
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: voiceText, ttsId: 'tts-current' }));
+      expect(speak).not.toHaveBeenCalledWith({ text: 'Previous response.', ttsId: 'tts-current' });
     } finally {
       window.history.pushState({}, '', '/');
       window.bubbles = previousBubbles;

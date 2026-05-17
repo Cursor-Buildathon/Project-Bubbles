@@ -74,12 +74,23 @@ button {
   position: relative;
   width: min(100%, 286px);
   min-height: 58px;
+  max-height: 140px;
   padding: 13px 15px;
   border-radius: 18px;
   color: #122226;
   font-size: 0.9rem;
   line-height: 1.35;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   text-align: left;
+  user-select: text;
+  white-space: pre-wrap;
+}
+
+.speech-bubble:focus-visible {
+  outline: 2px solid rgba(35, 127, 118, 0.5);
+  outline-offset: 3px;
 }
 
 .speech-bubble--glass {

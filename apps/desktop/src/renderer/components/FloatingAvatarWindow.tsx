@@ -1,4 +1,4 @@
-import { PointerEvent, useRef, useState } from 'react';
+import { KeyboardEvent, PointerEvent, useRef, useState } from 'react';
 import { AvatarStage } from '../../avatar/AvatarStage';
 import { type AvatarState } from '../../avatar/animationCatalog';
 
@@ -18,6 +18,12 @@ export function FloatingAvatarWindow({
   panelOpen
 }: FloatingAvatarWindowProps) {
   const dragRef = useRef({
+    active: false,
+    moved: false,
+    x: 0,
+    y: 0
+  });
+  const speechBubblePointerRef = useRef({
     active: false,
     moved: false,
     x: 0,
@@ -61,8 +67,13 @@ export function FloatingAvatarWindow({
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
+    const wasActive = dragRef.current.active;
     const wasMoved = dragRef.current.moved;
     dragRef.current.active = false;
+
+    if (!wasActive) {
+      return;
+    }
 
     if (event.target instanceof Element && event.target.closest('.avatar-button')) {
       return;
@@ -73,6 +84,11 @@ export function FloatingAvatarWindow({
     }
   }
 
+  function handleSpeechBubblePointerCancel(event: PointerEvent<HTMLDivElement>) {
+    speechBubblePointerRef.current.active = false;
+    event.stopPropagation();
+  }
+
   function handleAvatarClick() {
     if (dragRef.current.moved) {
       dragRef.current.moved = false;
@@ -80,6 +96,47 @@ export function FloatingAvatarWindow({
     }
 
     onTogglePanel();
+  }
+
+  function handleSpeechBubblePointerDown(event: PointerEvent<HTMLDivElement>) {
+    speechBubblePointerRef.current = {
+      active: true,
+      moved: false,
+      x: event.screenX,
+      y: event.screenY
+    };
+    event.stopPropagation();
+  }
+
+  function handleSpeechBubblePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const pointer = speechBubblePointerRef.current;
+
+    if (!pointer.active) {
+      return;
+    }
+
+    if (Math.abs(event.screenX - pointer.x) + Math.abs(event.screenY - pointer.y) >= 4) {
+      pointer.moved = true;
+    }
+
+    event.stopPropagation();
+  }
+
+  function handleSpeechBubblePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const shouldTogglePanel = speechBubblePointerRef.current.active && !speechBubblePointerRef.current.moved;
+    speechBubblePointerRef.current.active = false;
+    event.stopPropagation();
+
+    if (shouldTogglePanel) {
+      onTogglePanel();
+    }
+  }
+
+  function handleSpeechBubbleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onTogglePanel();
+    }
   }
 
   return (
@@ -101,7 +158,18 @@ export function FloatingAvatarWindow({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <div className="speech-bubble speech-bubble--glass" data-testid="speech-bubble">
+      <div
+        aria-label="Latest Bubbles message"
+        className="speech-bubble speech-bubble--glass"
+        data-testid="speech-bubble"
+        onKeyDown={handleSpeechBubbleKeyDown}
+        onPointerCancel={handleSpeechBubblePointerCancel}
+        onPointerDown={handleSpeechBubblePointerDown}
+        onPointerMove={handleSpeechBubblePointerMove}
+        onPointerUp={handleSpeechBubblePointerUp}
+        role="region"
+        tabIndex={0}
+      >
         {latestBubbleText}
       </div>
 

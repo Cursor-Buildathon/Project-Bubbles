@@ -12,7 +12,7 @@ import {
 import { AssistantPanel } from './components/AssistantPanel';
 import { FloatingAvatarWindow } from './components/FloatingAvatarWindow';
 import { type AvatarState } from '../avatar/animationCatalog';
-import { useVoiceSession, type VoiceReplyCandidate } from './voice/useVoiceSession';
+import { useVoiceSession, type VoiceReplyCandidate, type VoiceTranscriptContext } from './voice/useVoiceSession';
 import './styles.css';
 
 export interface ChatMessage {
@@ -67,6 +67,7 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const appStateRef = useRef(appState);
   const messageRequestSequenceRef = useRef(0);
   const {
     activeAgent,
@@ -93,8 +94,12 @@ export function App() {
     return approval ? { id: approval.id, title: approval.title } : undefined;
   }, [approvals]);
 
+  useEffect(() => {
+    appStateRef.current = appState;
+  }, [appState]);
+
   const submitUserText = useCallback(
-    async (userText: string): Promise<VoiceReplyCandidate | undefined> => {
+    async (userText: string, context?: VoiceTranscriptContext): Promise<VoiceReplyCandidate | undefined> => {
       const trimmedText = userText.trim();
 
       if (!trimmedText || !chatEnabled) {
@@ -111,9 +116,10 @@ export function App() {
             return undefined;
           }
 
-          const nextState = normalizeAppState(state);
+          const nextState = reconcileAppState(appStateRef.current, normalizeAppState(state));
+          appStateRef.current = nextState;
           setAppState(nextState);
-          return latestBubbleReplyCandidate(nextState);
+          return latestBubbleReplyCandidateAfter(nextState, context?.baselineMessageId);
         } catch (error) {
           if (messageRequestSequenceRef.current !== requestSequence) {
             return undefined;
@@ -176,7 +182,7 @@ export function App() {
     onTranscript: submitUserText
   });
   const displayAvatarState = voiceAvatarState(avatarState, voiceSession.voiceState);
-  const displayBubbleText = voiceSession.voiceState.captionText || latestBubbleMessage?.voiceText || latestBubbleText;
+  const displayBubbleText = floatingBubbleText(voiceSession.voiceState, latestBubbleMessage, latestBubbleText);
 
   useEffect(() => {
     return window.bubbles?.onPanelStateChange((isOpen) => setPanelOpen(isOpen));
@@ -204,16 +210,25 @@ export function App() {
     let ignore = false;
     void window.bubbles?.getState().then((state) => {
       if (!ignore) {
-        setAppState(normalizeAppState(state));
+        applyAppStateSnapshot(state);
       }
     });
-    const unsubscribe = window.bubbles?.onStateChange((state) => setAppState(normalizeAppState(state)));
+    const unsubscribe = window.bubbles?.onStateChange((state) => applyAppStateSnapshot(state));
 
     return () => {
       ignore = true;
       unsubscribe?.();
     };
   }, []);
+
+  function applyAppStateSnapshot(state: Partial<BubblesAppState> | undefined) {
+    const nextState = normalizeAppState(state);
+    setAppState((currentState) => {
+      const reconciled = reconcileAppState(currentState, nextState);
+      appStateRef.current = reconciled;
+      return reconciled;
+    });
+  }
 
   useEffect(() => {
     return window.bubbles?.tasks?.onEvent((event) => {
@@ -406,8 +421,17 @@ function normalizeAppState(state: Partial<BubblesAppState> | undefined): Bubbles
   };
 }
 
-function latestBubbleReplyCandidate(state: BubblesAppState): VoiceReplyCandidate | undefined {
-  return replyCandidateFromMessage([...state.messages].reverse().find((message) => message.author === 'bubbles'));
+function latestBubbleReplyCandidateAfter(state: BubblesAppState, baselineMessageId: number | undefined): VoiceReplyCandidate | undefined {
+  return replyCandidateFromMessage(
+    [...state.messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.author === 'bubbles' &&
+          isNewerThanBaseline(message.id, baselineMessageId) &&
+          !isProgressBubbleMessage(message.text)
+      )
+  );
 }
 
 function replyCandidateFromMessage(message: ChatMessage | undefined): VoiceReplyCandidate | undefined {
@@ -422,6 +446,47 @@ function replyCandidateFromMessage(message: ChatMessage | undefined): VoiceReply
     text: message.text,
     voiceText: message.voiceText
   };
+}
+
+function reconcileAppState(currentState: BubblesAppState, nextState: BubblesAppState): BubblesAppState {
+  if (maxMessageId(nextState.messages) >= maxMessageId(currentState.messages)) {
+    return nextState;
+  }
+
+  return {
+    ...nextState,
+    avatarState: currentState.avatarState,
+    messages: currentState.messages,
+    voiceState: currentState.voiceState
+  };
+}
+
+function maxMessageId(messages: ChatMessage[]) {
+  return messages.reduce((maxId, message) => Math.max(maxId, message.id), 0);
+}
+
+function isNewerThanBaseline(messageId: number, baselineMessageId: number | undefined) {
+  return baselineMessageId === undefined || messageId > baselineMessageId;
+}
+
+function isProgressBubbleMessage(text: string) {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  return (
+    /^i['’]m generating your (image|music|video)\b/.test(normalized) ||
+    /^approved\. i['’]m generating the landing page now\.?$/.test(normalized)
+  );
+}
+
+function floatingBubbleText(voiceState: VoiceSessionState, latestBubbleMessage: ChatMessage | undefined, fallbackText: string) {
+  if (
+    (voiceState.status === 'listening' || voiceState.status === 'processing' || voiceState.status === 'error') &&
+    voiceState.captionText.trim()
+  ) {
+    return voiceState.captionText;
+  }
+
+  return latestBubbleMessage?.text ?? (voiceState.captionText || fallbackText);
 }
 
 function voiceAvatarState(current: AvatarState, voiceState: VoiceSessionState): AvatarState {

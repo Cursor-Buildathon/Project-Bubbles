@@ -190,7 +190,7 @@ const appState: AppState = {
 
 const compactBounds = {
   width: 340,
-  height: 390
+  height: 460
 };
 
 const panelBounds = {

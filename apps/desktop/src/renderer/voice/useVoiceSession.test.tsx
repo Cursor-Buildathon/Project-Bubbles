@@ -227,6 +227,71 @@ describe('useVoiceSession', () => {
     }
   });
 
+  it('does not speak a reply candidate that existed before the voice request', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const onTranscript = vi.fn().mockResolvedValue({ id: 2, text: 'Previous answer.' });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      const { rerender } = renderHook(
+        ({ latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText }) =>
+          useVoiceSession({
+            chatEnabled: true,
+            latestBubbleMessageId,
+            latestBubbleSpeakOnArrival,
+            latestBubbleText,
+            onTranscript
+          }),
+        {
+          initialProps: {
+            latestBubbleMessageId: 2,
+            latestBubbleSpeakOnArrival: false,
+            latestBubbleText: 'Previous answer.'
+          }
+        }
+      );
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-image', text: 'make an image' },
+          createVoiceState({ status: 'processing', captionText: 'make an image' })
+        );
+      });
+
+      await waitFor(() => expect(onTranscript).toHaveBeenCalledWith('make an image', { baselineMessageId: 2 }));
+      expect(speak).not.toHaveBeenCalled();
+
+      rerender({
+        latestBubbleMessageId: 3,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The image is ready.'
+      });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'The image is ready.', ttsId: 'tts-current' }));
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
   it('does not replay a completed arrival message after the voice hook remounts', async () => {
     const previousBubbles = window.bubbles;
     const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
@@ -466,6 +531,136 @@ describe('useVoiceSession', () => {
     } finally {
       window.bubbles = previousBubbles;
       window.sessionStorage.clear();
+    }
+  });
+
+  it('skips voice progress messages and speaks when that output becomes ready', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const onTranscript = vi.fn().mockResolvedValue(undefined);
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      const { rerender } = renderHook(
+        ({ latestBubbleMessageId, latestBubbleSpeakOnArrival, latestBubbleText }) =>
+          useVoiceSession({
+            chatEnabled: true,
+            latestBubbleMessageId,
+            latestBubbleSpeakOnArrival,
+            latestBubbleText,
+            onTranscript
+          }),
+        {
+          initialProps: {
+            latestBubbleMessageId: 6,
+            latestBubbleSpeakOnArrival: false,
+            latestBubbleText: 'Previous answer.'
+          }
+        }
+      );
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-music', text: 'create music' },
+          createVoiceState({ status: 'processing', captionText: 'create music' })
+        );
+      });
+
+      rerender({
+        latestBubbleMessageId: 8,
+        latestBubbleSpeakOnArrival: false,
+        latestBubbleText: "I'm generating your music. This can take a minute or two."
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(speak).not.toHaveBeenCalled();
+
+      rerender({
+        latestBubbleMessageId: 8,
+        latestBubbleSpeakOnArrival: true,
+        latestBubbleText: 'The music is ready.'
+      });
+
+      await waitFor(() => expect(speak).toHaveBeenCalledWith({ text: 'The music is ready.', ttsId: 'tts-current' }));
+      expect(speak).toHaveBeenCalledTimes(1);
+    } finally {
+      window.bubbles = previousBubbles;
+    }
+  });
+
+  it('speaks a new web-search voice summary instead of the old chat response', async () => {
+    const previousBubbles = window.bubbles;
+    let voiceCallback: ((event: VoiceEvent, state: VoiceSessionState) => void) | undefined;
+    const speak = vi.fn().mockResolvedValue({ ok: true, ttsId: 'tts-current' });
+    const onTranscript = vi.fn().mockResolvedValue({
+      id: 11,
+      text: '## Research report\nThe full cited report is in chat.',
+      voiceText: 'Your research output is ready. I put the full report in chat.'
+    });
+
+    try {
+      window.bubbles = {
+        ...createBaseBubbles(),
+        voice: {
+          bargeIn: vi.fn(),
+          getState: vi.fn().mockResolvedValue(createVoiceState()),
+          onEvent: vi.fn((callback) => {
+            voiceCallback = callback;
+            return () => undefined;
+          }),
+          speak,
+          startSession: vi.fn(),
+          stopSession: vi.fn(),
+          stopSpeaking: vi.fn(),
+          submitPartialTranscript: vi.fn(),
+          submitTranscript: vi.fn()
+        }
+      };
+
+      renderHook(() =>
+        useVoiceSession({
+          chatEnabled: true,
+          latestBubbleMessageId: 10,
+          latestBubbleText: 'Previous answer.',
+          onTranscript
+        })
+      );
+
+      await act(async () => {
+        voiceCallback?.(
+          { type: 'voice.final', voiceTurnId: 'voice-search', text: 'do a web search' },
+          createVoiceState({ status: 'processing', captionText: 'do a web search' })
+        );
+      });
+
+      await waitFor(() =>
+        expect(speak).toHaveBeenCalledWith({
+          text: 'Your research output is ready. I put the full report in chat.',
+          ttsId: 'tts-current'
+        })
+      );
+      expect(speak).not.toHaveBeenCalledWith({ text: 'Previous answer.', ttsId: 'tts-current' });
+    } finally {
+      window.bubbles = previousBubbles;
     }
   });
 
