@@ -1,326 +1,406 @@
-# Bubbles MVP
+<div align="center">
+  <h1>🫧 Bubbles — Your Floating Desktop AI Companion</h1>
 
-Bubbles is a macOS desktop assistant with a floating animated avatar, an expandable workspace, voice input/output, live cited research, MiniMax-backed generation, local memory, approval-gated actions, and downloadable artifacts.
+  ### 🤖 macOS Electron Assistant with Voice, Live Research & Generative Media
 
-It is built as an Electron/Vite desktop app plus a shared TypeScript core package. The MVP is intentionally provider-backed for live runtime paths: MiniMax powers text, JSON, media, and TTS; Tavily Remote MCP powers web research; Gemini and OpenAI power speech-to-text; sqlite-backed stores keep local state; and macOS Keychain stores secrets.
+  **A small but capable desktop companion**
+  *Animated Avatar • Voice In/Out • Cited Web Research • Image / Music / Video • Approval‑Gated Actions*
 
-## Table of Contents
+<img src="https://img.shields.io/badge/Platform-macOS-black" alt="macOS">
+<img src="https://img.shields.io/badge/Runtime-Electron_33-47848F" alt="Electron">
+<img src="https://img.shields.io/badge/Language-TypeScript_5.7-3178C6" alt="TypeScript">
+<img src="https://img.shields.io/badge/UI-React_18-61DAFB" alt="React">
+<img src="https://img.shields.io/badge/Avatar-Pixi.js_8-E91E63" alt="Pixi.js">
+<img src="https://img.shields.io/badge/AI-MiniMax-FF6F00" alt="MiniMax">
+<img src="https://img.shields.io/badge/Research-Tavily_MCP-6C5CE7" alt="Tavily">
+<br>
 
-- [What Bubbles Can Do](#what-bubbles-can-do)
-- [Product Experience](#product-experience)
-- [Architecture](#architecture)
-- [Repository Layout](#repository-layout)
-- [Requirements](#requirements)
-- [Quick Start](#quick-start)
-- [Provider Setup](#provider-setup)
-- [Development Commands](#development-commands)
-- [Runtime Workflows](#runtime-workflows)
-- [Security and Safety Model](#security-and-safety-model)
-- [Testing and Quality Gates](#testing-and-quality-gates)
-- [Feature Flags](#feature-flags)
-- [Known Limitations](#known-limitations)
-- [Documentation Map](#documentation-map)
+  ![GitHub repo size](https://img.shields.io/github/repo-size/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
+  ![GitHub stars](https://img.shields.io/github/stars/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
+  ![GitHub forks](https://img.shields.io/github/forks/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
+  ![GitHub issues](https://img.shields.io/github/issues/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
+</div>
 
-## What Bubbles Can Do
+---
 
-| Capability | Status | Provider / Storage |
-| --- | --- | --- |
-| Floating avatar and expandable workspace | Live | Electron, React, Pixi |
-| Typed chat and general planning | Live | MiniMax Token Plan |
-| Voice input, captions, playback, and barge-in | Live | Gemini STT, OpenAI fallback, MiniMax TTS |
-| Deterministic voice introduction | Live | Local router shortcut |
-| Cited live web research | Live | Tavily Remote MCP + MiniMax synthesis |
-| Image generation | Live | MiniMax image API |
-| Music generation | Live | MiniMax music API |
-| Video generation | Live | MiniMax video API |
-| Approval-gated landing page generation | Live | MiniMax JSON + local sandbox + Vite |
-| Custom agent creation | Live | MiniMax JSON + approval-gated file writes |
-| Agent switching | Live | Filesystem-backed agent registry |
-| Explicit and extracted memories | Live | sql.js sqlite |
-| Timeline events | Live | sql.js sqlite |
-| Approval lifecycle | Live | sql.js sqlite |
-| Artifact open/download | Live | Electron shell + Downloads |
-| Redacted logs and trace events | Live | Local task logs |
-| Capability and fixture audits | Live | `tools/dev` scripts |
+## 🎯 Project Overview
 
-Try the voice phrase:
+**Bubbles** is a macOS desktop assistant that lives on your screen as a **floating animated avatar** and expands into a full **assistant workspace** on demand. It listens, plans, remembers, researches the live web with citations, generates media, builds approved landing pages, spawns custom agents, and speaks back — all from one compact companion.
 
-```text
-Bubbles Introduce Yourself
-```
+The project is built as a **pnpm monorepo**: a portable, strongly‑typed **core package** of services plus an **Electron/Vite desktop app** that composes them into a real product. Live runtime paths are intentionally **provider‑backed** (no canned demos): MiniMax powers text/JSON/media/TTS, Tavily Remote MCP powers web research, and Gemini/OpenAI power speech‑to‑text.
 
-Bubbles always responds with the same short summary:
+> 💡 Try the voice phrase **“Bubbles Introduce Yourself”** to hear the deterministic introduction.
 
-```text
-I'm Bubbles. I can plan, remember context, research with Tavily, create images, music, and video, build approved landing pages, create agents, manage approvals, and speak with voice.
-```
+<div align="center">
 
-## Product Experience
+| 🧠 Thinks | 🎙️ Speaks | 🔎 Researches | 🎨 Creates | 🔐 Asks First |
+|:---:|:---:|:---:|:---:|:---:|
+| Local intent routing | Voice in & out | Cited Tavily reports | Image / Music / Video | Approval‑gated actions |
 
-Bubbles has two primary surfaces:
+</div>
 
-- **Floating avatar window**: a compact, always-on-top animated avatar with state-aware captions.
-- **Assistant workspace**: an expanded panel with chat, setup, connectors, agents, voice controls, approvals, task events, memory, timeline, and artifacts.
+---
 
-The experience is designed around a small but capable desktop companion:
+## ✨ Key Features & Capabilities
 
-1. Ask a typed or spoken request.
-2. Bubbles classifies it locally.
-3. Specialized flows handle research, media, landing pages, agent birth, memory, and approvals.
-4. General requests fall back to MiniMax text task execution.
-5. App state is broadcast back to the avatar and panel so the UI stays synchronized.
+### 🫧 **Floating Avatar + Expandable Workspace**
+A compact, always‑on‑top animated Pixi.js avatar with state‑aware captions, paired with a full panel for chat, setup, connectors, agents, voice, approvals, memory, timeline, and artifacts.
 
-## Architecture
+### 🧭 **Deterministic Intent Routing**
+Every typed or spoken request is classified **locally first**, then dispatched to a specialized flow — research, media, landing pages, agent birth, memory — falling back to a MiniMax general task runner for everything else.
+
+### 🔎 **Cited Live Web Research**
+Real research, not a mock: Tavily Remote MCP performs search + extract, then MiniMax synthesizes a **cited report** that is persisted to memory and the timeline.
+
+### 🎨 **Generative Media**
+On‑prompt **image, music, and video** generation via MiniMax media APIs, saved as local artifacts with open/download actions and per‑type feature flags.
+
+### 🎙️ **Voice Input/Output with Barge‑In**
+Speech‑to‑text via Gemini (OpenAI fallback), playback via MiniMax TTS, live captions, barge‑in, and even **spoken approval resolution** (approve / deny / cancel).
+
+### 🔐 **Approval‑Gated, Redaction‑First Safety**
+Sensitive actions (landing‑page generation, agent creation, file writes) require explicit approval. Secrets live in macOS Keychain, and provider errors/content are redacted before storage or display.
+
+### 🧬 **Custom Agent Birth & Switching**
+Describe an agent and Bubbles drafts a behavioral profile (`agent.json`, `agent.md`, `skills.md`) — written only after approval — then lets you switch between agents from a filesystem‑backed registry.
+
+### 🧠 **Local Memory & Timeline**
+Explicit `remember that …` commands plus opportunistic memory extraction, all persisted in sqlite (`sql.js`), with timeline events for tasks, research, approvals, and agent actions.
+
+---
+
+## 🛠️ Tech Stack
+
+<div align="center">
+
+| **Layer** | **Technology** | **Role** |
+|-----------|----------------|----------|
+| **Desktop Shell** | Electron 33 | Windows, main/preload IPC, native integration |
+| **Build/Dev** | Electron Vite + Vite 5 | Dev runtime & production builds |
+| **UI** | React 18 + lucide-react | Renderer workspace & components |
+| **Avatar** | Pixi.js 8 | Animated floating avatar stage |
+| **Core Logic** | TypeScript 5.7 (strict) | Portable, typed services |
+| **AI Generation** | MiniMax Token Plan APIs | Text, JSON, image, music, video, TTS |
+| **Web Research** | Tavily Remote MCP | Live search + extract |
+| **Speech‑to‑Text** | Gemini STT (OpenAI fallback) | Voice transcription |
+| **Persistence** | sql.js (sqlite) | Memory, timeline, approvals |
+| **Secrets** | macOS Keychain | Provider key storage |
+| **Testing** | Vitest + RTL + jsdom | Core & renderer test suites |
+| **Packaging** | electron-builder | macOS dmg/zip |
+
+</div>
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
 flowchart LR
-  User["User"] --> Avatar["Floating Avatar Window"]
-  User --> Panel["Assistant Workspace"]
-  Avatar --> Renderer["React Renderer"]
-  Panel --> Renderer
-  Renderer --> Preload["window.bubbles preload API"]
-  Preload --> Main["Electron Main Runtime"]
-  Main --> Core["packages/core services"]
-  Core --> MiniMax["MiniMax APIs"]
-  Core --> Tavily["Tavily Remote MCP"]
-  Core --> Gemini["Gemini STT"]
-  Core --> OpenAI["OpenAI STT fallback"]
-  Core --> SQLite["sql.js sqlite stores"]
-  Core --> Keychain["macOS Keychain"]
-  Main --> Artifacts["userData artifacts + Downloads"]
-  Main --> Logs["Redacted task logs"]
+    User["👤 User"] --> Avatar["🫧 Floating Avatar Window"]
+    User --> Panel["🗂️ Assistant Workspace"]
+    Avatar --> Renderer["⚛️ React Renderer"]
+    Panel --> Renderer
+    Renderer --> Preload["🔌 window.bubbles preload API"]
+    Preload --> Main["🧩 Electron Main Runtime"]
+    Main --> Core["📦 packages/core services"]
+
+    Core --> MiniMax["🤖 MiniMax APIs"]
+    Core --> Tavily["🔎 Tavily Remote MCP"]
+    Core --> Gemini["🎙️ Gemini STT"]
+    Core --> OpenAI["🎙️ OpenAI STT fallback"]
+    Core --> SQLite["🗃️ sql.js sqlite stores"]
+    Core --> Keychain["🔐 macOS Keychain"]
+
+    Main --> Artifacts["🖼️ userData artifacts + Downloads"]
+    Main --> Logs["📝 Redacted task logs"]
 ```
 
 ### Core Boundaries
 
-- `packages/core` owns portable application logic: typed contracts, agents, approvals, connectors, coding sandbox helpers, memory, MiniMax/Tavily/Gemini/OpenAI adapters, orchestration, security, tasks, timeline, and voice policy.
-- `apps/desktop` owns Electron main/preload IPC, runtime composition, windows, app state hydration, React UI, Pixi avatar rendering, and desktop tests.
-- `apps/desktop/src/main/main.ts` is the composition root. It wires providers, key storage, sqlite stores, windows, IPC, task execution, voice, approvals, connectors, and artifacts.
-- The renderer consumes `window.bubbles`, never raw main-process APIs.
+- **`packages/core`** owns portable application logic: typed contracts, agents, approvals, connectors, coding sandbox helpers, memory, MiniMax/Tavily/Gemini/OpenAI adapters, orchestration, security, tasks, timeline, and voice policy.
+- **`apps/desktop`** owns Electron main/preload IPC, runtime composition, windows, app‑state hydration, the React UI, the Pixi avatar, and desktop tests.
+- **`apps/desktop/src/main/main.ts`** is the composition root — it wires providers, key storage, sqlite stores, windows, IPC, task execution, voice, approvals, connectors, and artifacts.
+- The renderer **only** consumes `window.bubbles`, never raw main‑process APIs.
 
-## Repository Layout
+---
 
-```text
-.
-|-- AGENTS.md                         # Agent instructions and project guardrails
-|-- FRD.md                            # Functional requirements snapshot
-|-- IntegratedFlows.md                # Capability flow analysis
-|-- Technical.md                      # Technical architecture analysis
-|-- docs/
-|   `-- setup_guide.md                # Provider setup notes
-|-- agents/
-|   |-- general-assistant/
-|   |-- qa-agent/
-|   |-- reaserch-agent/
-|   `-- ...                           # User-created agents may appear here
-|-- apps/
-|   `-- desktop/
-|       |-- src/main/                 # Electron main, IPC, provider wiring
-|       |-- src/renderer/             # React workspace and avatar UI
-|       |-- src/avatar/               # Sprite assets and metadata
-|       |-- electron.vite.config.ts
-|       `-- electron-builder.yml
-|-- packages/
-|   `-- core/
-|       `-- src/                      # Shared services, types, orchestration
-|-- tools/
-|   `-- dev/                          # Capability and fixture audits
-|-- package.json
-|-- pnpm-workspace.yaml
-|-- pnpm-lock.yaml
-`-- tsconfig.base.json
+## 🧠 How a Message Flows
+
+```mermaid
+flowchart TD
+    START([🎤 User text or voice transcript]) --> SEND[app:send-message]
+    SEND --> REMEMBER{Explicit<br/>remember command?}
+    REMEMBER -->|Yes| MEM[Store memory]
+    REMEMBER -->|No| ROUTE{Deterministic<br/>capability routing}
+
+    ROUTE -->|research.web| RES[🔎 Tavily search + extract<br/>→ MiniMax synthesis]
+    ROUTE -->|creative.image| IMG[🖼️ MiniMax image]
+    ROUTE -->|creative.music| MUS[🎵 MiniMax music]
+    ROUTE -->|creative.video| VID[🎬 MiniMax video]
+    ROUTE -->|coding.landing_page| LP[🌐 Approval → generate → sandbox → build]
+    ROUTE -->|agent.create| AGT[🧬 Draft → approval → write files]
+    ROUTE -->|introduce yourself| INTRO[👋 Deterministic intro]
+    ROUTE -->|everything else| GEN[🤖 MiniMax general task runner]
+
+    RES --> STATE[appState update]
+    IMG --> STATE
+    MUS --> STATE
+    VID --> STATE
+    LP --> STATE
+    AGT --> STATE
+    INTRO --> STATE
+    GEN --> STATE
+    MEM --> STATE
+
+    STATE --> BROADCAST[📡 Broadcast to avatar + panel]
 ```
 
-## Requirements
+---
 
-- macOS target runtime.
-- Node.js compatible with the project toolchain.
-- Corepack enabled so `pnpm@9.15.4` can be used from `packageManager`.
-- Network access for live provider features.
-- Provider keys for the flows you want to run:
-  - MiniMax Token Plan key for chat, text/JSON generation, research synthesis, media, TTS, agent birth, and landing pages.
-  - Tavily API key for live research.
-  - Gemini API key for primary speech-to-text.
-  - OpenAI API key for optional speech-to-text fallback.
+## 🚀 Getting Started
 
-Secrets should be entered through the app setup UI. Do not commit keys to repo files.
+### Quick Start Guide
 
-## Quick Start
+```mermaid
+flowchart LR
+    A[1️⃣ Clone Repo] --> B[2️⃣ Enable Corepack]
+    B --> C[3️⃣ Install Deps]
+    C --> D[4️⃣ Run Dev App]
+    D --> E[5️⃣ Configure Providers]
+    E --> F[6️⃣ Run Quality Gates]
+    F --> G[🎉 Build & Ship!]
+```
 
-Install dependencies:
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/Cursor-Buildathon/Project-Bubbles.git
+cd Project-Bubbles
+```
+
+### Step 2: Enable Corepack
+
+Bubbles pins `pnpm@9.15.4` via the `packageManager` field, so enable Corepack first:
 
 ```bash
 corepack enable
+```
+
+### Step 3: Install Dependencies
+
+```bash
 corepack pnpm install
 ```
 
-Start the desktop development app:
+### Step 4: Run the Desktop Development App
 
 ```bash
 npm run dev
 ```
 
-Run the main quality gates:
+This starts the Electron/Vite desktop runtime with the floating avatar and workspace.
+
+### Step 5: Configure Providers
+
+Open the in‑app **Setup screen** and add your provider keys (see [Provider Setup](#-provider-setup)). Keys are stored in macOS Keychain — never commit them.
+
+### Step 6: Run the Quality Gates
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-Build the desktop app:
+### Step 7: Build & Package
 
 ```bash
-npm run build
+npm run build          # Build the desktop app
+npm run package:mac    # Produce a macOS dmg/zip
 ```
 
-## Provider Setup
+---
 
-Open the Bubbles setup screen in the desktop app and configure providers there.
+## 🔑 Provider Setup
 
-### MiniMax
+All keys are entered through the in‑app **Setup screen** and stored in macOS Keychain.
 
-MiniMax is the primary readiness gate. Bubbles verifies the Token Plan key through direct MiniMax HTTPS APIs, stores it in macOS Keychain, and marks setup ready only after verification succeeds.
+<div align="center">
 
-Used for:
+| **Provider** | **Required For** | **Notes** |
+|--------------|------------------|-----------|
+| **MiniMax** | Chat, JSON, research synthesis, agent birth, landing pages, image/music/video, TTS | Primary readiness gate; verified via direct HTTPS before setup is marked ready |
+| **Tavily** | Live cited web research | Save key, enable the `Tavily Research` connector, run a health check |
+| **Gemini** | Primary speech‑to‑text | Used first for voice input |
+| **OpenAI** | Speech‑to‑text fallback | Optional STT fallback |
 
-- General task synthesis.
-- Intent-supporting JSON generation.
-- Tavily research report synthesis.
-- Agent birth drafts.
-- Landing page code generation.
-- Image, music, video, and TTS generation.
+</div>
 
-### Tavily
-
-Tavily powers live cited research. Save a Tavily API key, enable the `Tavily Research` connector, and run a health check.
-
-The app uses Tavily Remote MCP at:
+Tavily research uses the Remote MCP endpoint:
 
 ```text
 https://mcp.tavily.com/mcp/
 ```
 
-### Voice
+> ⚠️ **Security:** Never commit provider keys. Treat task logs, keychain values, and provider errors as sensitive — the codebase ships redaction helpers for exactly this reason.
 
-Voice input uses Gemini STT first and OpenAI STT as an optional fallback. Voice playback uses MiniMax TTS. Bubbles can also resolve pending approvals from spoken approve, deny, and cancel phrases.
+---
 
-## Development Commands
+## ⚙️ Development Commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Electron/Vite desktop development runtime. |
-| `npm run build` | Build the desktop app. |
-| `npm test` | Run all workspace Vitest suites. |
-| `npm run test:core` | Run only `@bubbles/core` tests. |
-| `npm run test:desktop` | Run only `@bubbles/desktop` tests. |
-| `npm run typecheck` | Run TypeScript checks across workspaces. |
-| `npm run typecheck:core` | Typecheck only `packages/core`. |
-| `npm run typecheck:desktop` | Typecheck only `apps/desktop`. |
-| `npm run audit:capabilities` | Print root scripts, IPC, preload calls, task types, connectors, voice types, and agents. |
-| `npm run audit:fixtures` | Find fixture/static/stub signals and declared task events without production emitters. |
-| `npm run doctor` | Run capability and fixture audits together. |
+<div align="center">
 
-## Runtime Workflows
+| **Command** | **Purpose** |
+|-------------|-------------|
+| `npm run dev` | Start the Electron/Vite desktop development runtime |
+| `npm run build` | Build the desktop app |
+| `npm run package:mac` | Build and package a macOS dmg/zip |
+| `npm test` | Run all workspace Vitest suites |
+| `npm run test:core` | Run only `@bubbles/core` tests |
+| `npm run test:desktop` | Run only `@bubbles/desktop` tests |
+| `npm run typecheck` | TypeScript checks across all workspaces |
+| `npm run typecheck:core` | Typecheck only `packages/core` |
+| `npm run typecheck:desktop` | Typecheck only `apps/desktop` |
+| `npm run audit:capabilities` | Print IPC, preload calls, task types, connectors, voice types, agents |
+| `npm run audit:fixtures` | Find fixture/static/stub signals and unimplemented task events |
+| `npm run doctor` | Run capability + fixture audits together |
 
-### Message Routing
+</div>
 
-```text
-User text or voice transcript
--> app:send-message
--> explicit remember command check
--> deterministic capability routing
--> specialized flow or generic MiniMax task runner
--> appState update
--> avatar/panel broadcast
-```
+> 💡 **Tip:** During development, prefer the narrowest command (e.g. `npm run test:core -- <pattern>`) and only run the full gates before claiming a broad change is complete.
 
-Specialized routing currently handles:
+---
 
-- `research.web`
-- `creative.image`
-- `creative.music`
-- `creative.video`
-- `coding.landing_page`
-- `agent.create`
-- deterministic introduction prompts
+## 🔄 Runtime Workflows
 
-Everything else falls through to the MiniMax-backed general task runner.
-
-### Research
+### 🔎 Research
 
 ```text
 Research prompt
--> Tavily MCP search
--> Tavily MCP extract
--> MiniMax report synthesis
--> cited chat response
--> memory/timeline persistence
+ → Tavily MCP search
+ → Tavily MCP extract
+ → MiniMax report synthesis
+ → cited chat response
+ → memory + timeline persistence
 ```
 
-Research requires both Tavily and MiniMax readiness.
+Requires **both** Tavily and MiniMax readiness.
 
-### Media
+### 🎨 Media (Image / Music / Video)
 
 ```text
-Image/music/video prompt
--> MiniMax media API
--> local artifact under userData
--> chat artifact card
--> open/download actions
+Media prompt
+ → MiniMax media API
+ → local artifact under userData
+ → chat artifact card
+ → open / download actions
 ```
 
-Feature flags can disable specific media types.
+Per‑type feature flags can disable any media capability.
 
-### Landing Pages
+### 🌐 Landing Pages
 
 ```text
 Landing page prompt
--> approval request
--> MiniMax code generation
--> sandbox file validation
--> accessibility check
--> Vite build
--> copy to Downloads
--> local static preview
+ → approval request
+ → MiniMax code generation
+ → sandbox file validation
+ → accessibility check
+ → Vite build
+ → copy to Downloads
+ → local static preview
 ```
 
-Revisions reuse the active landing page session when available.
+Revisions reuse the active landing‑page session when available.
 
-### Agent Birth
+### 🧬 Agent Birth
 
 ```text
 Agent creation prompt
--> MiniMax draft
--> approval request
--> write agent.json, agent.md, skills.md
--> optional activation prompt
+ → MiniMax draft
+ → approval request
+ → write agent.json, agent.md, skills.md
+ → optional activation prompt
 ```
 
-Agent birth rejects visual/avatar customization instructions. New agents are behavioral profiles, not new bodies.
+> Agent birth rejects visual/avatar customization — new agents are **behavioral profiles**, not new bodies.
 
-### Memory and Timeline
-
-Bubbles supports explicit memory commands:
+### 🧠 Memory & Timeline
 
 ```text
 remember that I prefer concise answers
 ```
 
-When MiniMax setup is ready, Bubbles can also extract durable memories opportunistically from normal user messages. Task results, research reports, approvals, agent actions, and memories can create timeline events.
+When MiniMax is ready, Bubbles also extracts durable memories opportunistically from normal messages. Tasks, research, approvals, agent actions, and memories can create timeline events.
 
-## Security and Safety Model
+---
 
-- Secrets are stored in macOS Keychain.
-- Provider errors and persisted content are redacted before storage or display where relevant.
-- Sensitive actions use approvals before execution.
-- Agent creation writes files only after approval.
-- Landing page generation runs through an allowlisted sandbox workflow.
-- Generated artifacts are opened/downloaded only through approved artifact paths.
-- Live product paths should use real providers or show clear unavailable states.
-- Fixture media is reserved for tests/CI through explicit `BUBBLES_MINIMAX_MEDIA_FIXTURE`.
-- Removed connector paths should stay removed: Web Search, Local Files, Gmail, Calendar, Google Workspace, generic command MCP, local MCP fixture connectors, and MiniMax CLI flows.
+## 🔐 Security & Safety Model
 
-## Testing and Quality Gates
+- 🔑 Secrets are stored in **macOS Keychain**.
+- 🧼 Provider errors and persisted content are **redacted** before storage/display where relevant.
+- ✋ Sensitive actions require **approvals** before execution.
+- 📝 Agent creation writes files **only after approval**.
+- 🏗️ Landing‑page generation runs through an **allowlisted sandbox** workflow.
+- 🖼️ Artifacts are opened/downloaded only through approved artifact paths.
+- 🚫 Live product paths use **real providers or clear unavailable states** — no canned outputs.
+- 🧪 Fixture media is reserved for tests/CI via `BUBBLES_MINIMAX_MEDIA_FIXTURE`.
+- 🗑️ Removed connectors stay removed: Web Search, Local Files, Gmail, Calendar, Google Workspace, generic command MCP, local MCP fixtures, and MiniMax CLI flows.
+
+---
+
+## 📁 Project Structure
+
+```text
+Project-Bubbles/
+├── 📄 README.md                          # This file
+├── 📄 AGENTS.md                          # Agent instructions & project guardrails
+├── 📄 package.json                       # Root scripts (delegate to corepack pnpm)
+├── 📄 pnpm-workspace.yaml                # Workspace definition
+├── 📄 tsconfig.base.json                 # Shared TS config
+│
+├── 📂 packages/
+│   └── core/                             # 📦 Portable, typed application logic
+│       └── src/
+│           ├── agents/                   # Agent birth, registry, schema
+│           ├── approvals/                # Approval service, risk + voice resolution
+│           ├── coding/                   # Landing page sandbox runner
+│           ├── connectors/               # Tavily MCP client, setup, research connector
+│           ├── memory/                   # Memory store + extractor (sqlite)
+│           ├── minimax/                  # API client, setup, creative, TTS, task runner
+│           ├── observability/            # Tracing
+│           ├── orchestration/            # Orchestrator, flow router, intent classifier
+│           ├── research/                 # Research service
+│           ├── security/                 # Secret redaction, secure key store
+│           ├── shared/                   # Types, command runner, sqlite database
+│           ├── tasks/                    # Task events + packet builder
+│           ├── timeline/                 # Timeline store (sqlite)
+│           └── voice/                    # STT, affect, spoken response, approvals
+│
+├── 📂 apps/
+│   └── desktop/                          # 🖥️ Electron/Vite desktop app
+│       └── src/
+│           ├── main/                     # Electron main, IPC, provider wiring
+│           │   └── main.ts               # 🧩 Composition root
+│           ├── renderer/                 # React workspace + components + screens
+│           ├── avatar/                   # Pixi avatar stage, catalogs, sprites
+│           └── test/                     # Test setup
+│
+├── 📂 agents/                            # Filesystem-backed agent profiles
+│   ├── general-assistant/
+│   ├── qa-agent/
+│   └── reaserch-agent/
+│
+├── 📂 docs/                              # FRD, Technical, flows, setup guides
+│
+├── 📂 tools/
+│   └── dev/                              # Capability & fixture audit scripts
+│
+└── 📂 .codex/skills/                     # Project-local agent skills
+```
+
+---
+
+## 🧪 Testing & Quality Gates
 
 Use the narrowest relevant command during development:
 
@@ -346,53 +426,119 @@ npm run audit:fixtures
 npm run doctor
 ```
 
-The test suite covers core service behavior, provider adapters, IPC controllers, renderer components, voice flows, landing-page sandboxing, capability mapping, and fixture auditing.
+The suite covers core service behavior, provider adapters, IPC controllers, renderer components, voice flows, landing‑page sandboxing, capability mapping, and fixture auditing.
 
-## Feature Flags
+---
 
-| Flag | Purpose |
-| --- | --- |
-| `BUBBLES_AGENT_BIRTH_TIMEOUT_MS` | Override agent birth draft timeout. |
-| `BUBBLES_CODING_LANDING_PAGE` | Enable/disable landing page generation. |
-| `BUBBLES_CREATIVE_IMAGE` | Enable/disable MiniMax image generation. |
-| `BUBBLES_CREATIVE_MUSIC` | Enable/disable MiniMax music generation. |
-| `BUBBLES_CREATIVE_VIDEO` | Enable/disable MiniMax video generation. |
-| `BUBBLES_MINIMAX_MEDIA_FIXTURE` | Use deterministic media artifacts for tests/CI only. |
-| `BUBBLES_QA_TASK_DELAY_MS` | Test/development delay control for QA flows. |
-| `BUBBLES_VOICE_APPROVALS_ENABLED` | Enable/disable spoken approval resolution. |
-| `BUBBLES_VOICE_ENABLED` | Enable/disable voice sessions. |
-| `ELECTRON_RENDERER_URL` | Point Electron at a development renderer URL. |
+## 🚩 Feature Flags
 
-## Known Limitations
+<div align="center">
 
-- This MVP targets macOS; cross-platform secret storage is not implemented.
-- The main process holds a large `appState` snapshot and broadcasts it to renderer windows.
-- Some renderer/global types duplicate core contracts.
-- Conversation history is still static UI rather than persisted multi-conversation history.
-- Generic `coding.project` tasks are MiniMax text tasks, not autonomous repo-editing flows.
-- Tavily is the only live connector-backed research integration.
-- Some task event contract values are future-facing and may not have production emitters.
-- Research follow-up context is in-memory and does not persist across restarts.
-- Fixture and static fallback surfaces exist for tests, CI, or controlled development, not live product behavior.
+| **Flag** | **Purpose** |
+|----------|-------------|
+| `BUBBLES_AGENT_BIRTH_TIMEOUT_MS` | Override agent birth draft timeout |
+| `BUBBLES_CODING_LANDING_PAGE` | Enable/disable landing page generation |
+| `BUBBLES_CREATIVE_IMAGE` | Enable/disable MiniMax image generation |
+| `BUBBLES_CREATIVE_MUSIC` | Enable/disable MiniMax music generation |
+| `BUBBLES_CREATIVE_VIDEO` | Enable/disable MiniMax video generation |
+| `BUBBLES_MINIMAX_MEDIA_FIXTURE` | Use deterministic media artifacts for tests/CI only |
+| `BUBBLES_QA_TASK_DELAY_MS` | Test/development delay control for QA flows |
+| `BUBBLES_VOICE_APPROVALS_ENABLED` | Enable/disable spoken approval resolution |
+| `BUBBLES_VOICE_ENABLED` | Enable/disable voice sessions |
+| `ELECTRON_RENDERER_URL` | Point Electron at a development renderer URL |
 
-## Documentation Map
+</div>
 
-| File | Purpose |
-| --- | --- |
-| `AGENTS.md` | Repository-specific instructions, stack map, skills, and guardrails. |
-| `FRD.md` | Functional requirements and acceptance-oriented product analysis. |
-| `IntegratedFlows.md` | End-to-end capability flow analysis by runtime path. |
-| `Technical.md` | Architecture, module, stack, and risk analysis. |
-| `docs/setup_guide.md` | Provider setup guide and removed connector notes. |
-| `ProductionTestChecklist.md` | Manual production validation checklist. |
-| `codex-production-test-prompt.md` | Production test prompt for agent-assisted verification. |
+---
 
-## Contributing Notes
+## 🐛 Troubleshooting
 
-- Prefer small, typed, testable changes in `packages/core` for business logic.
-- Keep Electron IPC changes synchronized across main, preload, renderer global types, and tests.
-- Do not build live features on canned outputs or fixture artifacts.
-- Keep provider keys, task logs, memory, timeline data, and screenshots secret-safe.
-- Add tests beside the changed behavior and choose the lowest responsible boundary.
-- Use `rg` for code search and `npm run audit:capabilities` when current wiring is unclear.
+<div align="center">
 
+| **Problem** | **Possible Cause** | **Solution** |
+|-------------|--------------------|--------------|
+| `pnpm` not found / wrong version | Corepack not enabled | Run `corepack enable`, then `corepack pnpm install` |
+| Setup never marks "ready" | MiniMax key invalid | Re‑enter the MiniMax Token Plan key; it is verified via live HTTPS |
+| Research returns nothing | Tavily not enabled/ready | Save Tavily key, enable connector, run health check; ensure MiniMax is also ready |
+| Voice input does nothing | Voice disabled or no STT key | Set `BUBBLES_VOICE_ENABLED`, add Gemini (or OpenAI) key |
+| Media prompt is ignored | Media feature flag off | Enable the relevant `BUBBLES_CREATIVE_*` flag |
+| Landing page never builds | Approval not granted | Approve the request; check sandbox/accessibility output |
+| Unclear IPC/agent wiring | — | Run `npm run audit:capabilities` |
+| Suspect fixture/static behavior | — | Run `npm run audit:fixtures` or `npm run doctor` |
+| Tests/typecheck fail after edits | Out‑of‑sync IPC contract | Sync main, preload, renderer global types, and tests together |
+
+</div>
+
+---
+
+## ⚠️ Known Limitations
+
+- 🍎 Targets **macOS**; cross‑platform secret storage is not implemented.
+- 📦 The main process holds a large `appState` snapshot broadcast to renderer windows.
+- 🔁 Some renderer/global types duplicate core contracts.
+- 💬 Conversation history is static UI rather than persisted multi‑conversation history.
+- 🧱 Generic `coding.project` tasks are MiniMax text tasks, **not** autonomous repo‑editing flows.
+- 🔎 Tavily is the **only** live connector‑backed research integration.
+- 🧭 Some task event contract values are future‑facing and may lack production emitters.
+- ⏳ Research follow‑up context is in‑memory and does not persist across restarts.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please keep changes small, typed, and testable.
+
+### Contributing Notes
+
+- Prefer small, typed changes in `packages/core` for business logic.
+- Keep Electron IPC changes synchronized across **main, preload, renderer global types, and tests**.
+- Do **not** build live features on canned outputs or fixture artifacts.
+- Keep provider keys, task logs, memory, timeline data, and screenshots secret‑safe.
+- Add tests beside the changed behavior at the lowest responsible boundary.
+- Use `rg` for code search and `npm run audit:capabilities` when wiring is unclear.
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/MyFeature`)
+3. Commit your changes (`git commit -m 'Add MyFeature'`)
+4. Push to the branch (`git push origin feature/MyFeature`)
+5. Open a Pull Request
+
+---
+
+## 📚 Documentation Map
+
+<div align="center">
+
+| **File** | **Purpose** |
+|----------|-------------|
+| `AGENTS.md` | Repository instructions, stack map, skills, and guardrails |
+| `docs/FRD.md` | Functional requirements & acceptance‑oriented analysis |
+| `docs/IntegratedFlows.md` | End‑to‑end capability flow analysis by runtime path |
+| `docs/Technical.md` | Architecture, module, stack, and risk analysis |
+| `docs/setup_guide.md` | Provider setup guide and removed‑connector notes |
+| `docs/how-to-setup.md` | Hands‑on setup walkthrough |
+| `docs/ProductionTestChecklist.md` | Manual production validation checklist |
+| `docs/codex-production-test-prompt.md` | Agent‑assisted verification prompt |
+
+</div>
+
+---
+
+## 📄 License
+
+This project is currently **private** (`"private": true`) and unlicensed for public distribution. Add a `LICENSE` file before releasing publicly.
+
+---
+
+<div align="center">
+
+  ### 🫧 **From Prompt to Presence** 🫧
+  ### 🌟 **Where a Desktop Companion Meets Real Providers** 🌟
+
+  ⭐ **Star this repository if you found it helpful!** ⭐
+
+  **Built with ❤️ for the Cursor Buildathon**
+
+</div>
