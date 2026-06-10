@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "corepack pnpm --filter @bubbles/desktop dev",
     "build": "corepack pnpm --filter @bubbles/desktop build",
+    "package:mac": "corepack pnpm --filter @bubbles/desktop package:mac",
     "doctor": "node tools/dev/capability-map.mjs && node tools/dev/fixture-audit.mjs",
     "audit:capabilities": "node tools/dev/capability-map.mjs",
     "audit:fixtures": "node tools/dev/fixture-audit.mjs",

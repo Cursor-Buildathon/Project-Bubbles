@@ -1,4 +1,5 @@
-import { Settings } from 'lucide-react';
+import { Power, Settings, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import {
   type ConnectorConfig,
   type MemoryItem,
@@ -35,8 +36,27 @@ export function WorkspaceStatusRail({
   timelineEvents,
   voiceState
 }: WorkspaceStatusRailProps) {
+  const [lifecycleMessage, setLifecycleMessage] = useState<string | null>(null);
+  const lifecycleApi = window.bubbles?.lifecycle;
+
   async function handleExportLogs() {
     await window.bubbles?.logs?.exportRedacted();
+  }
+
+  async function handleQuitApp() {
+    const result = await lifecycleApi?.quit();
+
+    if (!result?.ok) {
+      setLifecycleMessage(result?.error ?? 'Quit is unavailable from this window.');
+    }
+  }
+
+  async function handleMoveToTrash() {
+    const result = await lifecycleApi?.moveToTrash();
+
+    if (!result?.ok) {
+      setLifecycleMessage(result?.error ?? 'Move to Trash is unavailable from this window.');
+    }
   }
 
   return (
@@ -58,7 +78,20 @@ export function WorkspaceStatusRail({
           <button className="secondary-button" type="button" onClick={() => void handleExportLogs()}>
             Export redacted logs
           </button>
+          <button className="secondary-button" type="button" onClick={() => void handleQuitApp()}>
+            <Power size={14} aria-hidden="true" />
+            Quit Bubbles MVP
+          </button>
+          <button className="secondary-button secondary-button--danger" type="button" onClick={() => void handleMoveToTrash()}>
+            <Trash2 size={14} aria-hidden="true" />
+            Move app to Trash
+          </button>
         </div>
+        {lifecycleMessage ? (
+          <p className="settings-status-message" role="status">
+            {lifecycleMessage}
+          </p>
+        ) : null}
       </section>
 
       <section className="workspace-card" data-testid="connector-panel" aria-label="Connectors">

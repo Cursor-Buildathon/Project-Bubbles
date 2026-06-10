@@ -247,11 +247,20 @@ interface TimelineEvent {
   createdAt: string;
 }
 
+interface AppLifecycleResult {
+  ok: boolean;
+  error?: string;
+}
+
 declare global {
   interface Window {
     bubbles?: {
       closePanel: () => Promise<{ isOpen: boolean }>;
       getState: () => Promise<Partial<BubblesAppState>>;
+      lifecycle?: {
+        moveToTrash: () => Promise<AppLifecycleResult>;
+        quit: () => Promise<AppLifecycleResult>;
+      };
       moveWindowBy: (delta: { x: number; y: number }) => Promise<void>;
       onPanelStateChange: (callback: (isOpen: boolean) => void) => () => void;
       onStateChange: (callback: (state: Partial<BubblesAppState>) => void) => () => void;
