@@ -528,7 +528,8 @@ Contributions are welcome! Please keep changes small, typed, and testable.
 
 ## 📄 License
 
-This project is currently **private** (`"private": true`) and unlicensed for public distribution. Add a `LICENSE` file before releasing publicly.
+This project is licensed under the [Apache License 2.0](./LICENSE).
+
 
 ---
 
