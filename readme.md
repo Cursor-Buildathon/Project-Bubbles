@@ -19,6 +19,8 @@
   ![GitHub stars](https://img.shields.io/github/stars/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
   ![GitHub forks](https://img.shields.io/github/forks/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
   ![GitHub issues](https://img.shields.io/github/issues/Cursor-Buildathon/Project-Bubbles?style=for-the-badge)
+
+  ### 🎬 [Watch the Demo Video](https://www.youtube.com/watch?v=KYcrJRxbLl0) &nbsp;•&nbsp; 🌐 [Visit the Landing Page](https://v0-bubbles-landing-page-sand.vercel.app/)
 </div>
 
 ---
@@ -529,7 +531,6 @@ Contributions are welcome! Please keep changes small, typed, and testable.
 ## 📄 License
 
 This project is licensed under the [Apache License 2.0](./LICENSE).
-
 
 ---
 
